@@ -855,3 +855,5 @@ whatshap/stats:
   num_lines: 1
 xenome:
   fn: "*_xenome_stats.txt"
+jax_trimmer:
+  fn: "*_stat"

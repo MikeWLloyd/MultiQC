@@ -821,3 +821,6 @@ module_order:
   - xenome:
       module_tag:
         - DNA
+  - jax_trimmer:
+      module_tag:
+        - DNA
