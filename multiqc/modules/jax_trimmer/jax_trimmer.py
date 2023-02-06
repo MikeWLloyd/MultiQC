@@ -49,10 +49,12 @@ class MultiqcModule(BaseMultiqcModule):
         self.jax_trimmer_general_stats_table()
 
         # Alignment Rate Plot
-        self.jax_trimmer_stats_plot()
+        # self.jax_trimmer_stats_plot()
+        ## NOTE: turn this on if you want a barplot of trim stats. Does not seem necessary. 
 
     def parse_jax_trimmer_logs(self, f):
-        s_name = f["s_name"].replace("_stat", "")
+        s_name = f["s_name"].rsplit("_", 1)[0] 
+
         parsed_data = {}
         regexes = {
             "perc_hq": r"Percentage of HQ reads\s+(\d+.\d+)%\s+(\d+.\d+)",
@@ -128,6 +130,24 @@ class MultiqcModule(BaseMultiqcModule):
             "min": 0,
             "scale": False,
         }
+        headers["min_trim_len_1"] = {
+            "title": "Min Trim Length R1",
+            "description": "The minimum trim length of reads",
+            "min": 0,
+            "scale": False,
+        }
+        headers["mean_trim_len_1"] = {
+            "title": "Mean Trim Length R1",
+            "description": "The average trim length of reads",
+            "min": 0,
+            "scale": False,
+        }
+        headers["max_trim_len_1"] = {
+            "title": "Max Trim Length R1",
+            "description": "The max trim length of reads",
+            "min": 0,
+            "scale": False,
+        }
 
         if self.pe_bool:
             headers["total_reads_2"] = {
@@ -148,9 +168,21 @@ class MultiqcModule(BaseMultiqcModule):
                 "min": 0,
                 "scale": False,
             }
+            headers["min_trim_len_2"] = {
+                "title": "Min Trim Length R2",
+                "description": "The minimum trim length of reads",
+                "min": 0,
+                "scale": False,
+            }
             headers["mean_trim_len_2"] = {
                 "title": "Mean Trim Length R2",
                 "description": "The average trim length of reads",
+                "min": 0,
+                "scale": False,
+            }
+            headers["max_trim_len_2"] = {
+                "title": "Max Trim Length R2",
+                "description": "The max trim length of reads",
                 "min": 0,
                 "scale": False,
             }
@@ -162,14 +194,14 @@ class MultiqcModule(BaseMultiqcModule):
 
         # Specify the order of the different possible categories
         keys = OrderedDict()
-        keys["total_reads_1"] = {"color": "#000034", "name": "Total Reads"}
-        keys["total_hq_reads_1"] = {"color": "#328AE2", "name": "Total HQ Reads"}
-        keys["reads_passing_1"] = {"color": "#7F9DA7", "name": "Reads Passing Filter"}
+        keys["total_reads_1"] = {"color": "#000034", "name": "Total Reads R1"}
+        keys["total_hq_reads_1"] = {"color": "#328AE2", "name": "Total HQ Reads R1"}
+        keys["reads_passing_1"] = {"color": "#7F9DA7", "name": "Reads Passing Filter R1"}
 
         if self.pe_bool:
-            keys["total_reads_1"] = {"color": "#000034", "name": "Total Reads"}
-            keys["total_hq_reads_1"] = {"color": "#328AE2", "name": "Total HQ Reads"}
-            keys["reads_passing_1"] = {"color": "#7F9DA7", "name": "Reads Passing Filter"}
+            keys["total_reads_2"] = {"color": "#C1B8AA", "name": "Total Reads R2"}
+            keys["total_hq_reads_2"] = {"color": "#DDD4C6", "name": "Total HQ Reads R2"}
+            keys["reads_passing_2"] = {"color": "#db6d00", "name": "Reads Passing Filter R2"}
 
         # Config for the plot
         config = {
@@ -182,12 +214,7 @@ class MultiqcModule(BaseMultiqcModule):
         self.add_section(
             description="This plot shows JAX trimmer summary read counts",
             helptext="""
-            There are 5 possible categories:
-            * **Human**: Read was found only in human.
-            * **Mouse**: Read was found only in mouse.
-            * **Both Species**: Read was found in either mouse or human.
-            * **Neither Species**: Read was found in neither mouse or human.
-            * **Ambiguous**: Read origin could not be adequately determined.
+            Trim read counts. 
             """,
             plot=bargraph.plot(self.jax_trimmer_data, keys, config),
         )
