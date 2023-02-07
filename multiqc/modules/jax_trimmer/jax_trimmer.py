@@ -58,23 +58,23 @@ class MultiqcModule(BaseMultiqcModule):
         parsed_data = {}
         regexes = {
             "perc_hq": r"Percentage of HQ reads\s+(\d+.\d+)%\s+(\d+.\d+)",
-            "total_reads": r"Total number of reads\s+(\d+.\d+)\s+(\d+.\d+)",
-            "total_hq_reads": r"Total number of HQ filtered reads\s+(\d+.\d+)\s+(\d+.\d+)",
-            "reads_passing": r"Reads passing filter\s+(\d+.\d+)\s+(\d+.\d+)",
+            "total_reads": r"Total number of reads\s+(\d+)\s+(\d+)",
+            "total_hq_reads": r"Total number of HQ filtered reads\s+(\d+)\s+(\d+)",
+            "reads_passing": r"Reads passing filter\s+(\d+)\s+(\d+)",
             "perc_passing": r"Percent reads passing filter\s+(\d+.\d+)%\s+(\d+.\d+)",
-            "max_trim_len": r"Max Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
-            "min_trim_len": r"Min Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
-            "mean_trim_len": r"Mean Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
+            "max_trim_len": r"Max Trimmed Length\s+((\d+(?:\.\d+)?))\s+((\d+(?:\.\d+)?))",
+            "min_trim_len": r"Min Trimmed Length\s+((\d+(?:\.\d+)?))\s+((\d+(?:\.\d+)?))",
+            "mean_trim_len": r"Mean Trimmed Length\s+((\d+(?:\.\d+)?))\s+((\d+(?:\.\d+)?))",
         }
         regexes_se = {
-            "perc_hq": r"Percentage of HQ reads\s+(\d+.\d+)%\s+(\d+.\d+)",
-            "total_reads": r"Total number of reads\s+(\d+.\d+)\s+(\d+.\d+)",
-            "total_hq_reads": r"Total number of HQ filtered reads\s+(\d+.\d+)\s+(\d+.\d+)",
-            "reads_passing": r"Reads passing filter\s+(\d+.\d+)\s+(\d+.\d+)",
-            "perc_passing": r"Percent reads passing filter\s+(\d+.\d+)%\s+(\d+.\d+)",
-            "max_trim_len": r"Max Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
-            "min_trim_len": r"Min Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
-            "mean_trim_len": r"Mean Trimmed Length\s+(\d+.\d+)\s+(\d+.\d+)",
+            "perc_hq": r"Percentage of HQ reads\s+(\d+.\d+)%",
+            "total_reads": r"Total number of reads\s+(\d+)",
+            "total_hq_reads": r"Total number of HQ filtered reads\s+(\d+)",
+            "reads_passing": r"Reads passing filter\s+(\d+)",
+            "perc_passing": r"Percent reads passing filter\s+(\d+.\d+)%",
+            "max_trim_len": r"Max Trimmed Length\s+((\d+(?:\.\d+)?))",
+            "min_trim_len": r"Min Trimmed Length\s+((\d+(?:\.\d+)?))",
+            "mean_trim_len": r"Mean Trimmed Length\s+((\d+(?:\.\d+)?))",
         }
 
         self.pe_bool = False
@@ -93,7 +93,7 @@ class MultiqcModule(BaseMultiqcModule):
                     for k, r in regexes_se.items():
                         match = re.search(r, l)
                         if match:
-                            parsed_data[k] = float(match.group(1))
+                            parsed_data[k+"_1"] = float(match.group(1))
 
         if len(parsed_data) > 0:
             if s_name in self.jax_trimmer_data:
@@ -121,12 +121,6 @@ class MultiqcModule(BaseMultiqcModule):
         headers["reads_passing_1"] = {
             "title": "Reads Passing Filter R1",
             "description": "The total number of reads passing filter",
-            "min": 0,
-            "scale": False,
-        }
-        headers["mean_trim_len_1"] = {
-            "title": "Mean Trim Length R1",
-            "description": "The average trim length of reads",
             "min": 0,
             "scale": False,
         }
