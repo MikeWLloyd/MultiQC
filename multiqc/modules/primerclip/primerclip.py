@@ -21,8 +21,7 @@ class MultiqcModule(BaseMultiqcModule):
             name="Primerclip",
             anchor="primerclip",
             href="https://github.com/swiftbiosciences/primerclip",
-            info="is a tool for classifying reads from xenograft sources.",
-            doi="doi.org/10.1093/bioinformatics/bts236",
+            info="Primerclip™ is an alignment-based primer trimming tool designed to trim primer sequences for Swift Biosciences Accel-Amplicon™ panels.",
         )
 
         # Parse logs
@@ -46,9 +45,6 @@ class MultiqcModule(BaseMultiqcModule):
         # Report table is immutable, so just updating it works
         self.primerclip_general_stats_table()
 
-        # Alignment Rate Plot
-        self.primerclip_stats_plot()
-
     def parse_primerclip_logs(self, f):
         s_name = f["s_name"].replace("_primerclip_stats", "")
         parsed_data = {}
@@ -57,7 +53,7 @@ class MultiqcModule(BaseMultiqcModule):
             "total_mapped_alignments": r"Total mapped alignments:\s+(\d+)",
             "trimmed_by_ge_one_base": r"^Alignments trimmed by >= 1 base:\s+(\d+)",
             "trimmed_to_zero": r"Alignments trimmed to zero aligned length:\s+(\d+.\d+)",
-            "perc_trimmed_by_ge_one_base": r"% Alignments trimmed by >= 1 base:",
+            "perc_trimmed_by_ge_one_base": r"% Alignments trimmed by >= 1 base:\s+(\d+.\d+)",
             "perc_mapped_after_trimming": r"% Alignments mapped after trimming:\s+(\d+.\d+)"
         }
 

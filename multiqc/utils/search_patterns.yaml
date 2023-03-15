@@ -858,4 +858,4 @@ xenome:
 jax_trimmer:
   fn: "*_stat"
 primerclip:
-  fn: "primerclip_runstats.log"
+  fn: "*primerclip_runstats.log"
