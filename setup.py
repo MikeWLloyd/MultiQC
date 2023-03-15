@@ -201,6 +201,7 @@ setup(
             "whatshap = multiqc.modules.whatshap:MultiqcModule",
             "xenome = multiqc.modules.xenome:MultiqcModule",
             "jax_trimmer = multiqc.modules.jax_trimmer:MultiqcModule",
+            "primerclip = multiqc.modules.primmerclip:MultiqcModule",
         ],
         "multiqc.templates.v1": [
             "default = multiqc.templates.default",

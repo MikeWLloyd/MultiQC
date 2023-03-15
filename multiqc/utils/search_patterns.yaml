@@ -857,3 +857,5 @@ xenome:
   fn: "*_xenome_stats.txt"
 jax_trimmer:
   fn: "*_stat"
+primerclip:
+  fn: "primerclip_runstats.log"

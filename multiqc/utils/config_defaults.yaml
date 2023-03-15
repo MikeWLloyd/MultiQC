@@ -821,6 +821,9 @@ module_order:
   - jax_trimmer:
     module_tag:
       - DNA
+  - primerclip:
+    module_tag:
+      - DNA
   - xenome:
       module_tag:
         - DNA

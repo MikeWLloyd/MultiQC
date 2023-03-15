@@ -1,0 +1,1 @@
+from .primerclip import MultiqcModule
