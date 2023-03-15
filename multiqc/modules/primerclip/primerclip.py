@@ -46,7 +46,7 @@ class MultiqcModule(BaseMultiqcModule):
         self.primerclip_general_stats_table()
 
     def parse_primerclip_logs(self, f):
-        s_name = f["s_name"].replace("_primerclip_stats", "")
+        s_name = f["s_name"].replace("_primerclip_runstats", "")
         parsed_data = {}
         regexes = {
             "total_alignments": r"Total alignments processed:\s+(\d+)",

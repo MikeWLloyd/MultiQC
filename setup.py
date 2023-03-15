@@ -202,6 +202,7 @@ setup(
             "xenome = multiqc.modules.xenome:MultiqcModule",
             "jax_trimmer = multiqc.modules.jax_trimmer:MultiqcModule",
             "primerclip = multiqc.modules.primerclip:MultiqcModule",
+            "coverage_metrics = multiqc.modules.coverage_metrics:MultiqcModule",
         ],
         "multiqc.templates.v1": [
             "default = multiqc.templates.default",

@@ -824,6 +824,9 @@ module_order:
   - primerclip:
     module_tag:
       - DNA
+  - coverage_metrics:
+    module_tag:
+      - DNA
   - xenome:
       module_tag:
         - DNA

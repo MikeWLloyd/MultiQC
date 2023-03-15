@@ -859,3 +859,5 @@ jax_trimmer:
   fn: "*_stat"
 primerclip:
   fn: "*primerclip_runstats.log"
+coverage_metrics:
+  fn: "*_amplicon_coverage_metrics.txt"
