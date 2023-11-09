@@ -1,7 +1,6 @@
 ---
 title: Plotting Functions
 description: Visualising your data
-order: 2
 ---
 
 # Plotting Functions
@@ -106,7 +105,7 @@ config = {
     'cpswitch': True,                       # Show the 'Counts / Percentages' switch?
     'cpswitch_c_active': True,              # Initial display with 'Counts' specified? False for percentages.
     'cpswitch_counts_label': 'Counts',      # Label for 'Counts' button
-    'cpswitch_percent_label': 'Percentages' # Label for 'Percentages' button
+    'cpswitch_percent_label': 'Percentages',# Label for 'Percentages' button
     'logswitch': False,                     # Show the 'Log10' switch?
     'logswitch_active': False,              # Initial display with 'Log10' active?
     'logswitch_label': 'Log10',             # Label for 'Log10' button
@@ -134,11 +133,16 @@ config = {
 }
 ```
 
-> The keys `id` and `title` should always be passed as a minimum. The `id` is used
-> for the plot name when exporting. If left unset, the Plot Export panel will call
-> the filename `mqc_hcplot_gtucwirdzx.png` (with some other random string).
-> Plots should always have titles, especially as they can stand by themselves
-> when exported. The title should have the format `Modulename: Plot Name`
+:::note
+The keys `id` and `title` should always be passed as a minimum.
+
+The `id` is used for the plot name when exporting.
+If left unset the Plot Export panel will call the filename
+`mqc_hcplot_gtucwirdzx.png` (with some other random string).
+
+Plots should always have titles, especially as they can stand by themselves
+when exported. The title should have the format `Modulename: Plot Name`
+:::
 
 ### Switching datasets
 
@@ -277,11 +281,16 @@ config = {
 html_content = linegraph.plot(data, config)
 ```
 
-> The keys `id` and `title` should always be passed as a minimum. The `id` is used
-> for the plot name when exporting. If left unset, the Plot Export panel will call
-> the filename `mqc_hcplot_gtucwirdzx.png` (with some other random string).
-> Plots should always have titles, especially as they can stand by themselves
-> when exported. The title should have the format `Modulename: Plot Name`
+:::note
+The keys `id` and `title` should always be passed as a minimum.
+
+The `id` is used for the plot name when exporting.
+If left unset the Plot Export panel will call the filename
+`mqc_hcplot_gtucwirdzx.png` (with some other random string).
+
+Plots should always have titles, especially as they can stand by themselves
+when exported. The title should have the format `Modulename: Plot Name`
+:::
 
 ### Switching datasets
 
@@ -387,7 +396,7 @@ is **not** suitable for large quantities of data - 20,000 genes might look good
 for one sample, but when someone runs MultiQC with 500 samples, it will crash
 the browser and be impossible to interpret.
 
-See the above docs about line plots for most config options. The scatter plot
+See the documentation about line plots for most config options. The scatter plot
 has a handful of unique ones in addition:
 
 ```python
@@ -424,24 +433,24 @@ The default header keys are:
 
 ```python
 single_header = {
-    'namespace': '',                # Name for grouping. Prepends desc and is in Config Columns modal
-    'title': '[ dict key ]',        # Short title, table column title
-    'description': '[ dict key ]',  # Longer description, goes in mouse hover text
-    'max': None,                    # Minimum value in range, for bar / colour coding
-    'min': None,                    # Maximum value in range, for bar / colour coding
-    'ceiling': None,                # Maximum value for automatic bar limit
-    'floor': None,                  # Minimum value for automatic bar limit
-    'minRange': None,               # Minimum range for automatic bar
-    'scale': 'GnBu',                # Colour scale for colour coding. False to disable.
-    'bgcols': None,                 # Dict with values: background colours for categorical data.
-    'colour': '<auto>',             # Colour for column grouping
-    'suffix': None,                 # Suffix for value (eg. '%')
-    'format': '{:,.1f}',            # Value format string - default 1 decimal place
-    'cond_formatting_rules': None,  # Rules for conditional formatting table cell values - see docs below
+    'namespace': '',                 # Name for grouping. Prepends desc and is in Config Columns modal
+    'title': '[ dict key ]',         # Short title, table column title
+    'description': '[ dict key ]',   # Longer description, goes in mouse hover text
+    'max': None,                     # Minimum value in range, for bar / colour coding
+    'min': None,                     # Maximum value in range, for bar / colour coding
+    'ceiling': None,                 # Maximum value for automatic bar limit
+    'floor': None,                   # Minimum value for automatic bar limit
+    'minRange': None,                # Minimum range for automatic bar
+    'scale': 'GnBu',                 # Colour scale for colour coding. False to disable.
+    'bgcols': None,                  # Dict with values: background colours for categorical data.
+    'colour': '<auto>',              # Colour for column grouping
+    'suffix': None,                  # Suffix for value (eg. '%')
+    'format': '{:,.1f}',             # Value format string - default 1 decimal place
+    'cond_formatting_rules': None,   # Rules for conditional formatting table cell values - see docs below
     'cond_formatting_colours': None, # Styles for conditional formatting of table cell values
-    'shared_key': None              # See below for description
-    'modify': None,                 # Lambda function to modify values
-    'hidden': False                 # Set to True to hide the column on page load
+    'shared_key': None,              # See below for description
+    'modify': None,                  # Lambda function to modify values
+    'hidden': False                  # Set to True to hide the column on page load
 }
 ```
 
@@ -449,15 +458,15 @@ A third parameter can be specified with settings for the whole table:
 
 ```python
 table_config = {
-    'namespace': '',                         # Name for grouping. Prepends desc and is in Config Columns modal
-    'id': '<random string>',                 # ID used for the table
-    'table_title': '<table id>',             # Title of the table. Used in the column config modal
-    'save_file': False,                      # Whether to save the table data to a file
-    'raw_data_fn':'multiqc_<table_id>_table' # File basename to use for raw data file
-    'sortRows': True                         # Whether to sort rows alphabetically
-    'only_defined_headers': True             # Only show columns that are defined in the headers config
-    'col1_header': 'Sample Name'             # The header used for the first column
-    'no_beeswarm': False    # Force a table to always be plotted (beeswarm by default if many rows)
+    'namespace': '',                           # Name for grouping. Prepends desc and is in Config Columns modal
+    'id': '<random string>',                   # ID used for the table
+    'table_title': '<table id>',               # Title of the table. Used in the column config modal
+    'save_file': False,                        # Whether to save the table data to a file
+    'raw_data_fn': 'multiqc_<table_id>_table', # File basename to use for raw data file
+    'sortRows': True,                          # Whether to sort rows alphabetically
+    'only_defined_headers': True,              # Only show columns that are defined in the headers config
+    'col1_header': 'Sample Name',              # The header used for the first column
+    'no_beeswarm': False,                      # Force a table to always be plotted (beeswarm by default if many rows)
 }
 ```
 
@@ -575,8 +584,9 @@ headers[tablecol] = {
 
 ### Conditional formatting of data values
 
-MultiQC has configuration options to allow users to configure _"conditional formatting"_,
-with highlighted values in table cells ([see docs](#conditional-formatting)).
+MultiQC has configuration options to allow users to configure
+["Conditional formatting"](../reports/customisation.md#conditional-formatting),
+with highlighted values in table cells.
 
 Developers can also make use of this functionality within the header config dictionaries
 for formatting data values.
@@ -682,7 +692,7 @@ pconfig = {
     'square': True,                # Force the plot to stay square? (Maintain aspect ratio)
     'xcats_samples': True,         # Is the x-axis sample names? Set to False to prevent report toolbox from affecting.
     'ycats_samples': True,         # Is the y-axis sample names? Set to False to prevent report toolbox from affecting.
-    'colstops': []                 # Scale colour stops. See below.
+    'colstops': [],                # Scale colour stops. See below.
     'reverseColors': False,        # Reverse the order of the colour axis
     'decimalPlaces': 2,            # Number of decimal places for tooltip
     'legend': True,                # Colour axis key enabled or not
@@ -720,15 +730,17 @@ pconfig = {
 The javascript bundled in the default MultiQC template has a number of
 helper functions to make your life easier.
 
-> NB: The MultiQC Python functions make use of these, so it's very unlikely
-> that you'll need to use any of this. But it's here for reference.
+:::note
+The MultiQC Python functions make use of these, so it's very unlikely
+that you'll need to use any of this. But it's here for reference.
+:::
 
 ### Plotting line graphs
 
 `plot_xy_line_graph (target, ds)`
 
 Plots a line graph with multiple series of (x,y) data pairs. Used by
-the [linegraph.plot()](http://multiqc.info/docs/#line-graphs)
+the [linegraph.plot()](#line-graphs)
 python function.
 
 Data and configuration must be added to the document level
@@ -812,7 +824,7 @@ An example of the markup expected, with the function being called:
 `plot_stacked_bar_graph (target, ds)`
 
 Plots a bar graph with multiple series containing multiple categories.
-Used by the [bargraph.plot()](http://multiqc.info/docs/#bar-graphs)
+Used by the [bargraph.plot()](#bar-graphs)
 python function.
 
 Data and configuration must be added to the document level

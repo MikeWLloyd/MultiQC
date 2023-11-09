@@ -25,11 +25,6 @@ def plot(data, headers=None, pconfig=None):
     if pconfig is None:
         pconfig = {}
 
-    # Allow user to overwrite any given config for this plot
-    if "id" in pconfig and pconfig["id"] and pconfig["id"] in config.custom_plot_config:
-        for k, v in config.custom_plot_config[pconfig["id"]].items():
-            pconfig[k] = v
-
     # Make a datatable object
     dt = table_object.datatable(data, headers, pconfig)
 
@@ -93,9 +88,8 @@ def make_table(dt):
             header["dmax"], header["dmin"], header["namespace"], shared_key
         )
 
-        cell_contents = '<span class="mqc_table_tooltip" title="{}: {}">{}</span>'.format(
-            header["namespace"], header["description"], header["title"]
-        )
+        ns = f'{header["namespace"]}: ' if header["namespace"] else ""
+        cell_contents = f'<span class="mqc_table_tooltip" title="{ns}{header["description"]}">{header["title"]}</span>'
 
         t_headers[rid] = '<th id="header_{rid}" class="{rid} {h}" {da}>{c}</th>'.format(
             rid=rid, h=hide, da=data_attr, c=cell_contents
@@ -104,9 +98,7 @@ def make_table(dt):
         empty_cells[rid] = '<td class="data-coloured {rid} {h}"></td>'.format(rid=rid, h=hide)
 
         # Build the modal table row
-        t_modal_headers[
-            rid
-        ] = """
+        t_modal_headers[rid] = """
         <tr class="{rid}{muted}" style="background-color: rgba({col}, 0.15);">
           <td class="sorthandle ui-sortable-handle">||</span></td>
           <td style="text-align:center;">
@@ -131,10 +123,15 @@ def make_table(dt):
         )
 
         # Make a colour scale
-        if header["scale"] == False:
+        if header["scale"] is False:
             c_scale = None
         else:
-            c_scale = mqc_colour.mqc_colour_scale(header["scale"], header["dmin"], header["dmax"], id=table_id)
+            c_scale = mqc_colour.mqc_colour_scale(
+                name=header["scale"],
+                minval=header["dmin"],
+                maxval=header["dmax"],
+                id=table_id,
+            )
 
         # Collect conditional formatting config
         cond_formatting_rules = {}
@@ -158,39 +155,46 @@ def make_table(dt):
                     except TypeError as e:
                         logger.debug(f"Error modifying table value {kname} : {val} - {e}")
 
-                try:
-                    dmin = header["dmin"]
-                    dmax = header["dmax"]
-                    percentage = ((float(val) - dmin) / (dmax - dmin)) * 100
-                    # Treat 0 as 0-width and make bars width of absoluate value
-                    if header.get("bars_zero_centrepoint"):
-                        dmax = max(abs(header["dmin"]), abs(header["dmax"]))
-                        dmin = 0
-                        percentage = ((abs(float(val)) - dmin) / (dmax - dmin)) * 100
-                    percentage = min(percentage, 100)
-                    percentage = max(percentage, 0)
-                except (ZeroDivisionError, ValueError, TypeError):
-                    percentage = 0
-
-                try:
-                    valstring = str(header["format"].format(val))
-                except ValueError:
+                if c_scale and c_scale.name not in c_scale.qualitative_scales:
                     try:
-                        valstring = str(header["format"].format(float(val)))
-                    except ValueError:
-                        valstring = str(val)
-                except:
-                    valstring = str(val)
+                        dmin = header["dmin"]
+                        dmax = header["dmax"]
+                        percentage = ((float(val) - dmin) / (dmax - dmin)) * 100
+                        # Treat 0 as 0-width and make bars width of absolute value
+                        if header.get("bars_zero_centrepoint"):
+                            dmax = max(abs(header["dmin"]), abs(header["dmax"]))
+                            dmin = 0
+                            percentage = ((abs(float(val)) - dmin) / (dmax - dmin)) * 100
+                        percentage = min(percentage, 100)
+                        percentage = max(percentage, 0)
+                    except (ZeroDivisionError, ValueError, TypeError):
+                        percentage = 0
+                else:
+                    percentage = 100
 
-                # This is horrible, but Python locale settings are worse
-                if config.thousandsSep_format is None:
-                    config.thousandsSep_format = '<span class="mqc_thousandSep"></span>'
-                if config.decimalPoint_format is None:
-                    config.decimalPoint_format = "."
-                valstring = valstring.replace(".", "DECIMAL").replace(",", "THOUSAND")
-                valstring = valstring.replace("DECIMAL", config.decimalPoint_format).replace(
-                    "THOUSAND", config.thousandsSep_format
-                )
+                if "format" in header and callable(header["format"]):
+                    valstring = header["format"](val)
+                else:
+                    try:
+                        # "format" is a format string?
+                        valstring = str(header["format"].format(val))
+                    except ValueError:
+                        try:
+                            valstring = str(header["format"].format(float(val)))
+                        except ValueError:
+                            valstring = str(val)
+                    except Exception:
+                        valstring = str(val)
+
+                    # This is horrible, but Python locale settings are worse
+                    if config.thousandsSep_format is None:
+                        config.thousandsSep_format = '<span class="mqc_thousandSep"></span>'
+                    if config.decimalPoint_format is None:
+                        config.decimalPoint_format = "."
+                    valstring = valstring.replace(".", "DECIMAL").replace(",", "THOUSAND")
+                    valstring = valstring.replace("DECIMAL", config.decimalPoint_format).replace(
+                        "THOUSAND", config.thousandsSep_format
+                    )
 
                 # Percentage suffixes etc
                 valstring += header.get("suffix", "")
@@ -237,19 +241,21 @@ def make_table(dt):
                 if badge_col is not None:
                     valstring = '<span class="badge" style="background-color:{}">{}</span>'.format(badge_col, valstring)
 
-                # Categorical backgorund colours supplied
+                # Categorical background colours supplied
                 if val in header.get("bgcols", {}).keys():
                     col = 'style="background-color:{} !important;"'.format(header["bgcols"][val])
                     if s_name not in t_rows:
                         t_rows[s_name] = dict()
-                    t_rows[s_name][rid] = '<td class="{rid} {h}" {c}>{v}</td>'.format(
-                        rid=rid, h=hide, c=col, v=valstring
+                    t_rows[s_name][rid] = '<td val="{val}" class="{rid} {h}" {c}>{v}</td>'.format(
+                        val=val, rid=rid, h=hide, c=col, v=valstring
                     )
 
                 # Build table cell background colour bar
                 elif header["scale"]:
                     if c_scale is not None:
-                        col = " background-color:{} !important;".format(c_scale.get_colour(val))
+                        col = " background-color:{} !important;".format(
+                            c_scale.get_colour(val, source=f"Table {table_id}, column {k}")
+                        )
                     else:
                         col = ""
                     bar_html = '<span class="bar" style="width:{}%;{}"></span>'.format(percentage, col)
@@ -258,8 +264,8 @@ def make_table(dt):
 
                     if s_name not in t_rows:
                         t_rows[s_name] = dict()
-                    t_rows[s_name][rid] = '<td class="data-coloured {rid} {h}">{c}</td>'.format(
-                        rid=rid, h=hide, c=wrapper_html
+                    t_rows[s_name][rid] = '<td val="{val}" class="data-coloured {rid} {h}">{c}</td>'.format(
+                        val=val, rid=rid, h=hide, c=wrapper_html
                     )
 
                 # Scale / background colours are disabled
@@ -293,9 +299,7 @@ def make_table(dt):
         <button type="button" class="mqc_table_copy_btn btn btn-default btn-sm" data-clipboard-target="#{tid}">
             <span class="glyphicon glyphicon-copy"></span> Copy table
         </button>
-        """.format(
-            tid=table_id
-        )
+        """.format(tid=table_id)
 
         # Configure Columns Button
         if len(t_headers) > 1:
@@ -303,18 +307,14 @@ def make_table(dt):
             <button type="button" class="mqc_table_configModal_btn btn btn-default btn-sm" data-toggle="modal" data-target="#{tid}_configModal">
                 <span class="glyphicon glyphicon-th"></span> Configure Columns
             </button>
-            """.format(
-                tid=table_id
-            )
+            """.format(tid=table_id)
 
         # Sort By Highlight button
         html += """
         <button type="button" class="mqc_table_sortHighlight btn btn-default btn-sm" data-target="#{tid}" data-direction="desc" style="display:none;">
             <span class="glyphicon glyphicon-sort-by-attributes-alt"></span> Sort by highlight
         </button>
-        """.format(
-            tid=table_id
-        )
+        """.format(tid=table_id)
 
         # Scatter Plot Button
         if len(t_headers) > 1:
@@ -322,9 +322,7 @@ def make_table(dt):
             <button type="button" class="mqc_table_makeScatter btn btn-default btn-sm" data-toggle="modal" data-target="#tableScatterModal" data-table="#{tid}">
                 <span class="glyphicon glyphicon glyphicon-stats"></span> Plot
             </button>
-            """.format(
-                tid=table_id
-            )
+            """.format(tid=table_id)
 
         # "Showing x of y columns" text
         row_visibilities = [all(t_rows_empty[s_name].values()) for s_name in t_rows_empty]
@@ -348,9 +346,7 @@ def make_table(dt):
         # Build table header text
         html += """
         <small id="{tid}_numrows_text" class="mqc_table_numrows_text">{rows}{cols}.</small>
-        """.format(
-            tid=table_id, rows=t_showing_rows_txt, cols=t_showing_cols_txt
-        )
+        """.format(tid=table_id, rows=t_showing_rows_txt, cols=t_showing_cols_txt)
 
     # Build the table itself
     collapse_class = "mqc-table-collapse" if len(t_rows) > 10 and config.collapse_tables else ""
@@ -358,9 +354,7 @@ def make_table(dt):
         <div id="{tid}_container" class="mqc_table_container">
             <div class="table-responsive mqc-table-responsive {cc}">
                 <table id="{tid}" class="table table-condensed mqc_table" data-title="{title}">
-        """.format(
-        tid=table_id, title=table_title, cc=collapse_class
-    )
+        """.format(tid=table_id, title=table_title, cc=collapse_class)
 
     # Build the header row
     col1_header = dt.pconfig.get("col1_header", "Sample Name")
@@ -397,7 +391,7 @@ def make_table(dt):
             <h4 class="modal-title">{title}: Columns</h4>
           </div>
           <div class="modal-body">
-            <p>Uncheck the tick box to hide columns. Click and drag the handle on the left to change order.</p>
+            <p>Uncheck the tick box to hide columns. Click and drag the handle on the left to change order. Table ID: <code>{tid}</code></p>
             <p>
                 <button class="btn btn-default btn-sm mqc_configModal_bulkVisible" data-target="#{tid}" data-action="showAll">Show All</button>
                 <button class="btn btn-default btn-sm mqc_configModal_bulkVisible" data-target="#{tid}" data-action="showNone">Show None</button>
@@ -420,9 +414,7 @@ def make_table(dt):
             </table>
         </div>
         <div class="modal-footer"> <button type="button" class="btn btn-default" data-dismiss="modal">Close</button> </div>
-    </div> </div> </div>""".format(
-            tid=table_id, title=table_title, trows="".join(t_modal_headers.values())
-        )
+    </div> </div> </div>""".format(tid=table_id, title=table_title, trows="".join(t_modal_headers.values()))
 
     # Save the raw values to a file if requested
     if dt.pconfig.get("save_file") is True:

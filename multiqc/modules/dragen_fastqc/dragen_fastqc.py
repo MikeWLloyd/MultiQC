@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import logging
 import os
 
+from ..base_module import ModuleNoSamplesFound
 from .base_metrics import DragenBaseMetrics
 from .content_metrics import DragenContentMetrics
 from .gc_metrics import DragenFastqcGcMetrics
@@ -13,7 +14,7 @@ log = logging.getLogger(__name__)
 
 
 class MultiqcModule(DragenBaseMetrics, DragenReadMetrics, DragenFastqcGcMetrics, DragenContentMetrics):
-    """DRAGEN provides a number of differrent pipelines and outputs, including base calling, DNA and RNA alignment,
+    """DRAGEN provides a number of different pipelines and outputs, including base calling, DNA and RNA alignment,
     post-alignment processing and variant calling, covering virtually all stages of typical NGS data processing.
     However, it can be treated as a fast aligner with additional features on top, as users will unlikely use any
     features without enabling DRAGEN mapping. So we will treat this module as an alignment tool module and
@@ -65,8 +66,12 @@ class MultiqcModule(DragenBaseMetrics, DragenReadMetrics, DragenFastqcGcMetrics,
 
             if s_name in data_by_sample:
                 log.debug("Duplicate sample name found! Overwriting: {}".format(f["s_name"]))
-            self.add_data_source(f, section="stats")
+            self.add_data_source(f, s_name)
             data_by_sample.update(data_by_mate)
+
+            # Superfluous function call to confirm that it is used in this module
+            # Replace None with actual version if it is available
+            self.add_software_version(None, s_name)
 
         # Filter to strip out ignored sample names:
         self.dragen_fastqc_data = self.ignore_samples(data_by_sample)
@@ -90,5 +95,5 @@ class MultiqcModule(DragenBaseMetrics, DragenReadMetrics, DragenFastqcGcMetrics,
         samples_found |= self.add_content_metrics()
 
         if len(samples_found) == 0:
-            raise UserWarning
+            raise ModuleNoSamplesFound
         log.info("Found {} reports".format(len(samples_found)))

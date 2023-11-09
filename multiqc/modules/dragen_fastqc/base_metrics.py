@@ -3,7 +3,7 @@ import logging
 from collections import OrderedDict, defaultdict
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule
+from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import boxplot, linegraph
 
 from .util import average_from_range, sortPosQualTableKeys
@@ -115,7 +115,7 @@ class DragenBaseMetrics(BaseMultiqcModule):
                     counts[base][pos] = int(value)
                     totals[pos] += int(value)
 
-                # Use the the count and averages to recompute total QVs
+                # Use the count and averages to recompute total QVs
                 qv_sums = defaultdict(int)
                 for base, pos_data in counts.items():
                     for pos, count in pos_data.items():

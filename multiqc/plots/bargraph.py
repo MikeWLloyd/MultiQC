@@ -14,7 +14,7 @@ import re
 import sys
 from collections import OrderedDict
 
-from multiqc.utils import config, report, util_functions
+from multiqc.utils import config, mqc_colour, report, util_functions
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def plot(data, cats=None, pconfig=None):
             pconfig[k] = v
 
     # Validate config if linting
-    if config.lint:
+    if config.strict:
         # Get module name
         modname = ""
         callstack = inspect.stack()
@@ -183,30 +183,46 @@ def plot(data, cats=None, pconfig=None):
         logger.warning(f"Tried to make bar plot, but had no data: {pconfig.get('id')}")
         return '<p class="text-danger">Error - was not able to plot data.</p>'
 
+    # Add colors to the categories if not set. Since the "plot_defaults" scale is
+    # identical to default scale of the Highcharts JS library, this is not strictly
+    # needed. But it future proofs when we replace Highcharts with something else.
+    scale = mqc_colour.mqc_colour_scale("plot_defaults")
+    for si, sd in enumerate(plotdata):
+        for di, d in enumerate(sd):
+            d.setdefault("color", scale.get_colour(di, lighten=1))
+
     # Make a plot - custom, interactive or flat
-    try:
-        return get_template_mod().bargraph(plotdata, plotsamples, pconfig)
-    except (AttributeError, TypeError):
-        if config.plots_force_flat or (
-            not config.plots_force_interactive and len(plotsamples[0]) > config.plots_flat_numseries
-        ):
-            try:
-                report.num_mpl_plots += 1
-                return matplotlib_bargraph(plotdata, plotsamples, pconfig)
-            except Exception as e:
-                logger.error("############### Error making MatPlotLib figure! Falling back to HighCharts.")
-                logger.debug(e, exc_info=True)
-                return highcharts_bargraph(plotdata, plotsamples, pconfig)
-        else:
-            # Use MatPlotLib to generate static plots if requested
-            if config.export_plots:
-                try:
-                    matplotlib_bargraph(plotdata, plotsamples, pconfig)
-                except Exception as e:
-                    logger.error("############### Error making MatPlotLib figure! Plot not exported.")
-                    logger.debug(e, exc_info=True)
-            # Return HTML for HighCharts dynamic plot
+    mod = get_template_mod()
+    if "bargraph" in mod.__dict__ and callable(mod.bargraph):
+        try:
+            return mod.bargraph(plotdata, plotsamples, pconfig)
+        except:
+            if config.strict:
+                # Crash quickly in the strict mode. This can be helpful for interactive
+                # debugging of modules
+                raise
+    if config.plots_force_flat or (
+        not config.plots_force_interactive and len(plotsamples[0]) > config.plots_flat_numseries
+    ):
+        try:
+            report.num_mpl_plots += 1
+            return matplotlib_bargraph(plotdata, plotsamples, pconfig)
+        except Exception as e:
+            if config.strict:
+                raise
+            logger.error("############### Error making MatPlotLib figure! Falling back to HighCharts.")
+            logger.debug(e, exc_info=True)
             return highcharts_bargraph(plotdata, plotsamples, pconfig)
+    else:
+        # Use MatPlotLib to generate static plots if requested
+        if config.export_plots:
+            try:
+                matplotlib_bargraph(plotdata, plotsamples, pconfig)
+            except Exception as e:
+                logger.error("############### Error making MatPlotLib figure! Plot not exported.")
+                logger.debug(e, exc_info=True)
+        # Return HTML for HighCharts dynamic plot
+        return highcharts_bargraph(plotdata, plotsamples, pconfig)
 
 
 def highcharts_bargraph(plotdata, plotsamples=None, pconfig=None):
@@ -339,20 +355,6 @@ def matplotlib_bargraph(plotdata, plotsamples, pconfig=None):
     )
     html += '<div class="mqc_mplplot_plotgroup" id="{}">'.format(pconfig["id"])
 
-    # Same defaults as HighCharts for consistency
-    default_colors = [
-        "#7cb5ec",
-        "#434348",
-        "#90ed7d",
-        "#f7a35c",
-        "#8085e9",
-        "#f15c80",
-        "#e4d354",
-        "#2b908f",
-        "#f45b5b",
-        "#91e8e1",
-    ]
-
     # Counts / Percentages Switch
     if pconfig.get("cpswitch") is not False and not config.simple_output:
         if pconfig.get("cpswitch_c_active", True) is True:
@@ -367,9 +369,7 @@ def matplotlib_bargraph(plotdata, plotsamples, pconfig=None):
         html += '<div class="btn-group mpl_switch_group mqc_mplplot_bargraph_setcountspcnt"> \n\
             <button class="btn btn-default btn-sm {c_a} counts">{c_l}</button> \n\
             <button class="btn btn-default btn-sm {p_a} pcnt">{p_l}</button> \n\
-        </div> '.format(
-            c_a=c_active, p_a=p_active, c_l=c_label, p_l=p_label
-        )
+        </div> '.format(c_a=c_active, p_a=p_active, c_l=c_label, p_l=p_label)
         if len(plotdata) > 1:
             html += " &nbsp; &nbsp; "
 
@@ -470,10 +470,6 @@ def matplotlib_bargraph(plotdata, plotsamples, pconfig=None):
                 else:
                     for i, p in enumerate(prevdata):
                         prevdata[i] += prev_values[i]
-                # Default colour index
-                cidx = idx
-                while cidx >= len(default_colors):
-                    cidx -= len(default_colors)
                 # Save the name of this series
                 dlabels.append(d["name"])
                 # Add the series of bars to the plot
@@ -482,7 +478,7 @@ def matplotlib_bargraph(plotdata, plotsamples, pconfig=None):
                     values,
                     bar_width,
                     left=prevdata,
-                    color=d.get("color", default_colors[cidx]),
+                    color=d["color"],
                     align="center",
                     linewidth=pconfig.get("borderWidth", 0),
                 )

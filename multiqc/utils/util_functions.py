@@ -68,35 +68,31 @@ def write_data_file(data, fn, sort_cols=False, data_format=None):
         if data_format not in ["json", "yaml"]:
             # attempt to reshape data to tsv
             try:
-                # Convert keys to strings
-                data = {str(k): v for k, v in data.items()}
                 # Get all headers from the data, except if data is a dictionary (i.e. has >1 dimensions)
-                # Use list -> dict -> list to get only unique values
-                h = list(
-                    dict.fromkeys(
-                        [
-                            str(data_header)
-                            for sample_data in data.values()
-                            for data_header in sample_data.keys()
-                            if type(sample_data[data_header]) is not dict
-                        ]
-                    )
-                )
-                # Add Sample header in to first element
-                h.insert(0, "Sample")
+                headers = []
+                for d in data.values():
+                    if not d or (isinstance(d, list) and isinstance(d[0], dict)):
+                        continue
+                    for h in d.keys():
+                        if h not in headers:
+                            headers.append(h)
                 if sort_cols:
-                    h = sorted(h)
+                    headers = sorted(headers)
+
+                headers_str = [str(item) for item in headers]
+                # Add Sample header in to first element
+                headers_str.insert(0, "Sample")
 
                 # Get the rows
-                rows = ["\t".join(h)]
+                rows = ["\t".join(headers_str)]
                 for sn in sorted(data.keys()):
                     # Make a list starting with the sample name, then each field in order of the header cols
-                    l = [str(sn)] + [str(data[sn].get(k, "")) for k in h[1:]]
-                    rows.append("\t".join(l))
+                    line = [str(sn)] + [str(data[sn].get(h, "")) for h in headers]
+                    rows.append("\t".join(line))
 
                 body = "\n".join(rows)
 
-            except:
+            except Exception:
                 data_format = "yaml"
                 config.logger.debug(f"{fn} could not be saved as tsv/csv. Falling back to YAML.")
 
@@ -143,3 +139,25 @@ def force_term_colors():
     if os.getenv("GITHUB_ACTIONS") or os.getenv("FORCE_COLOR") or os.getenv("PY_COLORS"):
         return True
     return None
+
+
+def strtobool(val):
+    """
+    Replaces deprecated https://docs.python.org/3.9/distutils/apiref.html#distutils.util.strtobool
+    The deprecation recommendation is to re-implement the function https://peps.python.org/pep-0632/
+
+    ------------------------------------------------------------
+
+    Convert a string representation of truth to true (1) or false (0).
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return 1
+    elif val in ("n", "no", "f", "false", "off", "0"):
+        return 0
+    else:
+        raise ValueError("invalid truth value %r" % (val,))
