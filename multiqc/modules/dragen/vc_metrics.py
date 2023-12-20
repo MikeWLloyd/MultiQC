@@ -1,6 +1,6 @@
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.modules.base_module import BaseMultiqcModule
 from multiqc.plots import table
 
 from .utils import Metric, exist_and_number, make_headers
@@ -55,7 +55,14 @@ class DragenVCMetrics(BaseMultiqcModule):
             except for the "Filtered" metrics which represent how many variants were filtered out
             from pre-filter VCF to generate the post-filter VCF.
             """,
-            plot=table.plot(data_by_sample, vc_table_headers, pconfig={"namespace": NAMESPACE}),
+            plot=table.plot(
+                data_by_sample,
+                vc_table_headers,
+                pconfig={
+                    "id": "dragen-vc-metrics-table",
+                    "namespace": NAMESPACE,
+                },
+            ),
         )
         return data_by_sample.keys()
 

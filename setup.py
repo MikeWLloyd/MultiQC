@@ -23,8 +23,8 @@ MultiQC was written by Phil Ewels (http://phil.ewels.co.uk) at Seqera Labs (http
 
 from setuptools import find_packages, setup
 
-version = "1.18dev"
-dl_version = "master" if "dev" in version else "v{}".format(version)
+version = "1.20dev"
+dl_version = "main" if "dev" in version else f"v{version}"
 
 print(
     f"""-----------------------------------
@@ -43,7 +43,7 @@ setup(
     long_description=__doc__,
     keywords=["bioinformatics", "biology", "sequencing", "NGS", "next generation sequencing", "quality control"],
     url="http://multiqc.info",
-    download_url="https://github.com/ewels/MultiQC/tarball/{}".format(dl_version),
+    download_url=f"https://github.com/MultiQC/MultiQC/tarball/{dl_version}",
     license="GPLv3",
     packages=find_packages(),
     include_package_data=True,
@@ -65,6 +65,7 @@ setup(
         "spectra>=0.0.10",
         "importlib-metadata",
         "humanize",
+        "pyaml-env",
     ],
     entry_points={
         "console_scripts": [
@@ -183,7 +184,6 @@ setup(
             "samblaster = multiqc.modules.samblaster:MultiqcModule",
             "samtools = multiqc.modules.samtools:MultiqcModule",
             "sargasso = multiqc.modules.sargasso:MultiqcModule",
-            "sentieon = multiqc.modules.sentieon:MultiqcModule",
             "seqyclean = multiqc.modules.seqyclean:MultiqcModule",
             "sexdeterrmine = multiqc.modules.sexdeterrmine:MultiqcModule",
             "sickle = multiqc.modules.sickle:MultiqcModule",
@@ -212,6 +212,7 @@ setup(
             "jax_trimmer = multiqc.modules.jax_trimmer:MultiqcModule",
             "primerclip = multiqc.modules.primerclip:MultiqcModule",
             "coverage_metrics = multiqc.modules.coverage_metrics:MultiqcModule",
+            "xengsort = multiqc.modules.xengsort:MultiqcModule",
         ],
         "multiqc.templates.v1": [
             "default = multiqc.templates.default",

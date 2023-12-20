@@ -3,8 +3,7 @@
 """ MultiQC functions to plot a table """
 
 import logging
-import random
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
 from multiqc.plots import beeswarm, table_object
 from multiqc.utils import config, mqc_colour, report, util_functions
@@ -26,7 +25,7 @@ def plot(data, headers=None, pconfig=None):
         pconfig = {}
 
     # Make a datatable object
-    dt = table_object.datatable(data, headers, pconfig)
+    dt = table_object.DataTable(data, headers, pconfig)
 
     # Collect unique sample names
     s_names = set()
@@ -36,7 +35,7 @@ def plot(data, headers=None, pconfig=None):
 
     # Make a beeswarm plot if we have lots of samples
     if len(s_names) >= config.max_table_rows and pconfig.get("no_beeswarm") is not True:
-        logger.debug("Plotting beeswarm instead of table, {} samples".format(len(s_names)))
+        logger.debug(f"Plotting beeswarm instead of table, {len(s_names)} samples")
         warning = (
             '<p class="text-muted"><span class="glyphicon glyphicon-exclamation-sign" '
             'title="A beeswarm plot has been generated instead because of the large number of samples. '
@@ -48,18 +47,17 @@ def plot(data, headers=None, pconfig=None):
         return make_table(dt)
 
 
-def make_table(dt):
+def make_table(dt: table_object.DataTable):
     """
     Build the HTML needed for a MultiQC table.
-    :param data: MultiQC datatable object
+    :param dt: MultiQC datatable object
     """
 
-    table_id = dt.pconfig.get("id", "table_{}".format("".join(random.sample(letters, 4))))
-    table_id = report.save_htmlid(table_id)
-    t_headers = OrderedDict()
-    t_modal_headers = OrderedDict()
-    t_rows = OrderedDict()
-    t_rows_empty = OrderedDict()
+    table_id = dt.pconfig["id"]
+    t_headers = dict()
+    t_modal_headers = dict()
+    t_rows = dict()
+    t_rows_empty = dict()
     dt.raw_vals = defaultdict(lambda: dict())
     empty_cells = dict()
     hidden_cols = 1
@@ -73,7 +71,7 @@ def make_table(dt):
         # Build the table header cell
         shared_key = ""
         if header.get("shared_key", None) is not None:
-            shared_key = " data-shared-key={}".format(header["shared_key"])
+            shared_key = f" data-shared-key={header['shared_key']}"
 
         hide = ""
         muted = ""
@@ -95,7 +93,7 @@ def make_table(dt):
             rid=rid, h=hide, da=data_attr, c=cell_contents
         )
 
-        empty_cells[rid] = '<td class="data-coloured {rid} {h}"></td>'.format(rid=rid, h=hide)
+        empty_cells[rid] = f'<td class="data-coloured {rid} {hide}"></td>'
 
         # Build the modal table row
         t_modal_headers[rid] = """
@@ -146,7 +144,7 @@ def make_table(dt):
         for s_name, samp in dt.data[idx].items():
             if k in samp:
                 val = samp[k]
-                kname = "{}_{}".format(header["namespace"], rid)
+                kname = f"{header['namespace']}_{rid}"
                 dt.raw_vals[s_name][kname] = val
 
                 if "modify" in header and callable(header["modify"]):
@@ -228,10 +226,8 @@ def make_table(dt):
                                         cmatches[ftype] = True
                                     if "lt" in cmp and float(cmp["lt"]) > float(val):
                                         cmatches[ftype] = True
-                                except:
-                                    logger.warning(
-                                        "Not able to apply table conditional formatting to '{}' ({})".format(val, cmp)
-                                    )
+                                except Exception:
+                                    logger.warning(f"Not able to apply table conditional formatting to '{val}' ({cmp})")
                 # Apply HTML in order of config keys
                 badge_col = None
                 for cfc in cond_formatting_colours:
@@ -239,11 +235,11 @@ def make_table(dt):
                         if cmatches[cfck]:
                             badge_col = cfc[cfck]
                 if badge_col is not None:
-                    valstring = '<span class="badge" style="background-color:{}">{}</span>'.format(badge_col, valstring)
+                    valstring = f'<span class="badge" style="background-color:{badge_col}">{valstring}</span>'
 
                 # Categorical background colours supplied
                 if val in header.get("bgcols", {}).keys():
-                    col = 'style="background-color:{} !important;"'.format(header["bgcols"][val])
+                    col = f"style=\"background-color:{header['bgcols'][val]} !important;\""
                     if s_name not in t_rows:
                         t_rows[s_name] = dict()
                     t_rows[s_name][rid] = '<td val="{val}" class="{rid} {h}" {c}>{v}</td>'.format(
@@ -254,13 +250,13 @@ def make_table(dt):
                 elif header["scale"]:
                     if c_scale is not None:
                         col = " background-color:{} !important;".format(
-                            c_scale.get_colour(val, source=f"Table {table_id}, column {k}")
+                            c_scale.get_colour(val, source=f'Table "{table_id}", column "{k}"')
                         )
                     else:
                         col = ""
-                    bar_html = '<span class="bar" style="width:{}%;{}"></span>'.format(percentage, col)
-                    val_html = '<span class="val">{}</span>'.format(valstring)
-                    wrapper_html = '<div class="wrapper">{}{}</div>'.format(bar_html, val_html)
+                    bar_html = f'<span class="bar" style="width:{percentage}%;{col}"></span>'
+                    val_html = f'<span class="val">{valstring}</span>'
+                    wrapper_html = f'<div class="wrapper">{bar_html}{val_html}</div>'
 
                     if s_name not in t_rows:
                         t_rows[s_name] = dict()
@@ -272,7 +268,9 @@ def make_table(dt):
                 else:
                     if s_name not in t_rows:
                         t_rows[s_name] = dict()
-                    t_rows[s_name][rid] = '<td class="{rid} {h}">{v}</td>'.format(rid=rid, h=hide, v=valstring)
+                    t_rows[s_name][rid] = '<td val="{val}" class="{rid} {h}">{v}</td>'.format(
+                        val=val, rid=rid, h=hide, v=valstring
+                    )
 
                 # Is this cell hidden or empty?
                 if s_name not in t_rows_empty:
@@ -285,7 +283,7 @@ def make_table(dt):
                 hidden_cols -= 1
             t_headers.pop(rid, None)
             t_modal_headers.pop(rid, None)
-            logger.debug("Removing header {} from table, as no data".format(k))
+            logger.debug(f"Removing header {k} from table, as no data")
 
     #
     # Put everything together
@@ -353,12 +351,12 @@ def make_table(dt):
     html += """
         <div id="{tid}_container" class="mqc_table_container">
             <div class="table-responsive mqc-table-responsive {cc}">
-                <table id="{tid}" class="table table-condensed mqc_table" data-title="{title}">
-        """.format(tid=table_id, title=table_title, cc=collapse_class)
+                <table id="{tid}" class="table table-condensed mqc_table" data-title="{title}" data-sortlist="{sortlist}">
+        """.format(tid=table_id, title=table_title, cc=collapse_class, sortlist=_get_sortlist(dt))
 
     # Build the header row
     col1_header = dt.pconfig.get("col1_header", "Sample Name")
-    html += '<thead><tr><th class="rowheader">{}</th>{}</tr></thead>'.format(col1_header, "".join(t_headers.values()))
+    html += f"<thead><tr><th class=\"rowheader\">{col1_header}</th>{''.join(t_headers.values())}</tr></thead>"
 
     # Build the table body
     html += "<tbody>"
@@ -368,7 +366,7 @@ def make_table(dt):
     for s_name in t_row_keys:
         # Hide the row if all cells are empty or hidden
         row_hidden = ' style="display:none"' if all(t_rows_empty[s_name].values()) else ""
-        html += "<tr{}>".format(row_hidden)
+        html += f"<tr{row_hidden}>"
         # Sample name row header
         html += '<th class="rowheader" data-original-sn="{sn}">{sn}</th>'.format(sn=s_name)
         for k in t_headers:
@@ -418,8 +416,57 @@ def make_table(dt):
 
     # Save the raw values to a file if requested
     if dt.pconfig.get("save_file") is True:
-        fn = dt.pconfig.get("raw_data_fn", "multiqc_{}".format(table_id))
+        fn = dt.pconfig.get("raw_data_fn", f"multiqc_{table_id}")
         util_functions.write_data_file(dt.raw_vals, fn)
         report.saved_raw_data[fn] = dt.raw_vals
 
     return html
+
+
+def _get_sortlist(dt: table_object.DataTable) -> str:
+    """
+    Custom column sorting order for a table plot. The order is provided in the following form:
+
+    ```yaml
+    custom_plot_config:
+      general_stats_table:
+        defaultsort:
+          - column: "Mean Insert Length"
+            direction: asc
+          - column: "Starting Amount (ng)"
+      quast_table:
+        defaultsort:
+        - column: "Largest contig"
+    ```
+
+    It is returned in a form os a list literal, as expected by the jQuery tablesorter plugin.
+    """
+    defaultsort = dt.pconfig.get("defaultsort")
+    if defaultsort is None:
+        return ""
+
+    headers = dt.get_headers_in_order()
+    sortlist = []
+
+    # defaultsort is a list of {column, direction} objects
+    for d in defaultsort:
+        try:
+            # The first element of the triple is not actually unique, it's a bucket index,
+            # so we must re-enumerate ourselves here
+            idx = next(
+                idx
+                for idx, (_, k, header) in enumerate(headers)
+                if d["column"].lower() in [k.lower(), header["title"].lower()]
+            )
+        except StopIteration:
+            logger.warning(
+                "Tried to sort by column '%s', but column was not found. Available columns: %s",
+                d["column"],
+                [k for (_, k, _) in headers],
+            )
+            return ""
+        idx += 1  # to account for col1_header
+        direction = 0 if d.get("direction", "").startswith("asc") else 1
+        sortlist.append([idx, direction])
+
+    return str(sortlist)

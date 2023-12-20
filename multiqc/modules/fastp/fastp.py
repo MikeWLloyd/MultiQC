@@ -4,7 +4,6 @@
 import json
 import logging
 import re
-from collections import OrderedDict
 from typing import Dict, Optional, Tuple
 
 from multiqc import config
@@ -36,14 +35,14 @@ class MultiqcModule(BaseMultiqcModule):
             if not s_name:
                 continue
             if s_name in data_by_sample:
-                log.debug("Duplicate sample name found! Overwriting: {}".format(s_name))
+                log.debug(f"Duplicate sample name found! Overwriting: {s_name}")
             data_by_sample[s_name] = parsed_json
 
         # Filter to strip out ignored sample names
         data_by_sample = self.ignore_samples(data_by_sample)
         if len(data_by_sample) == 0:
             raise ModuleNoSamplesFound
-        log.info("Found {} reports".format(len(data_by_sample)))
+        log.info(f"Found {len(data_by_sample)} reports")
 
         # Find and load any fastp reports
         self.fastp_data = dict()
@@ -182,9 +181,15 @@ class MultiqcModule(BaseMultiqcModule):
             # It still won't work exactly right for file names with dashes following a
             # space, but that's a pretty rare case, and will still extract something
             # meaningful.
+            s_names = []
             m = re.search(r"(-i|--in1)\s(.+?)(?:\s-|$)", cmd)
             if m:
-                s_name = self.clean_s_name(m.group(2), f)
+                s_names.append(m.group(2))
+                # Second input for paired end?
+                m = re.search(r"--in2\s(.+?)(?:\s-|$)", cmd)
+                if m:
+                    s_names.append(m.group(1))
+                s_name = self.clean_s_name(s_names, f)
             else:
                 s_name = f["s_name"]
                 log.warning(
@@ -212,7 +217,7 @@ class MultiqcModule(BaseMultiqcModule):
         # Parse filtering_result
         try:
             for k in parsed_json["filtering_result"]:
-                self.fastp_data[s_name]["filtering_result_{}".format(k)] = float(parsed_json["filtering_result"][k])
+                self.fastp_data[s_name][f"filtering_result_{k}"] = float(parsed_json["filtering_result"][k])
         except KeyError:
             log.debug(f"fastp JSON did not have 'filtering_result' key: '{s_name}'")
 
@@ -225,9 +230,7 @@ class MultiqcModule(BaseMultiqcModule):
         # Parse after_filtering
         try:
             for k in parsed_json["summary"]["after_filtering"]:
-                self.fastp_data[s_name]["after_filtering_{}".format(k)] = float(
-                    parsed_json["summary"]["after_filtering"][k]
-                )
+                self.fastp_data[s_name][f"after_filtering_{k}"] = float(parsed_json["summary"]["after_filtering"][k])
         except KeyError:
             log.debug(f"fastp JSON did not have a 'summary'-'after_filtering' keys: '{s_name}'")
 
@@ -251,7 +254,7 @@ class MultiqcModule(BaseMultiqcModule):
         try:
             for k in parsed_json["adapter_cutting"]:
                 try:
-                    self.fastp_data[s_name]["adapter_cutting_{}".format(k)] = float(parsed_json["adapter_cutting"][k])
+                    self.fastp_data[s_name][f"adapter_cutting_{k}"] = float(parsed_json["adapter_cutting"][k])
                 except (ValueError, TypeError):
                     pass
         except KeyError:
@@ -334,66 +337,67 @@ class MultiqcModule(BaseMultiqcModule):
         """Take the parsed stats from the fastp report and add it to the
         General Statistics table at the top of the report"""
 
-        headers = OrderedDict()
-        headers["pct_duplication"] = {
-            "title": "% Duplication",
-            "description": "Duplication rate before filtering",
-            "max": 100,
-            "min": 0,
-            "suffix": "%",
-            "scale": "RdYlGn-rev",
-        }
-        headers["after_filtering_q30_rate"] = {
-            "title": "% > Q30",
-            "description": "Percentage of reads > Q30 after filtering",
-            "min": 0,
-            "max": 100,
-            "modify": lambda x: x * 100.0,
-            "scale": "GnBu",
-            "suffix": "%",
-            "hidden": True,
-        }
-        headers["after_filtering_q30_bases"] = {
-            "title": "{} Q30 bases".format(config.base_count_prefix),
-            "description": "Bases > Q30 after filtering ({})".format(config.base_count_desc),
-            "min": 0,
-            "modify": lambda x: x * config.base_count_multiplier,
-            "scale": "GnBu",
-            "shared_key": "base_count",
-            "hidden": True,
-        }
-        headers["filtering_result_passed_filter_reads"] = {
-            "title": "{} Reads After Filtering".format(config.read_count_prefix),
-            "description": "Total reads after filtering ({})".format(config.read_count_desc),
-            "min": 0,
-            "scale": "Blues",
-            "modify": lambda x: x * config.read_count_multiplier,
-            "shared_key": "read_count",
-        }
-        headers["after_filtering_gc_content"] = {
-            "title": "GC content",
-            "description": "GC content after filtering",
-            "max": 100,
-            "min": 0,
-            "suffix": "%",
-            "scale": "Blues",
-            "modify": lambda x: x * 100.0,
-        }
-        headers["pct_surviving"] = {
-            "title": "% PF",
-            "description": "Percent reads passing filter",
-            "max": 100,
-            "min": 0,
-            "suffix": "%",
-            "scale": "BuGn",
-        }
-        headers["pct_adapter"] = {
-            "title": "% Adapter",
-            "description": "Percentage adapter-trimmed reads",
-            "max": 100,
-            "min": 0,
-            "suffix": "%",
-            "scale": "RdYlGn-rev",
+        headers = {
+            "pct_duplication": {
+                "title": "% Duplication",
+                "description": "Duplication rate before filtering",
+                "max": 100,
+                "min": 0,
+                "suffix": "%",
+                "scale": "RdYlGn-rev",
+            },
+            "after_filtering_q30_rate": {
+                "title": "% > Q30",
+                "description": "Percentage of reads > Q30 after filtering",
+                "min": 0,
+                "max": 100,
+                "modify": lambda x: x * 100.0,
+                "scale": "GnBu",
+                "suffix": "%",
+                "hidden": True,
+            },
+            "after_filtering_q30_bases": {
+                "title": f"{config.base_count_prefix} Q30 bases",
+                "description": f"Bases > Q30 after filtering ({config.base_count_desc})",
+                "min": 0,
+                "modify": lambda x: x * config.base_count_multiplier,
+                "scale": "GnBu",
+                "shared_key": "base_count",
+                "hidden": True,
+            },
+            "filtering_result_passed_filter_reads": {
+                "title": f"{config.read_count_prefix} Reads After Filtering",
+                "description": f"Total reads after filtering ({config.read_count_desc})",
+                "min": 0,
+                "scale": "Blues",
+                "modify": lambda x: x * config.read_count_multiplier,
+                "shared_key": "read_count",
+            },
+            "after_filtering_gc_content": {
+                "title": "GC content",
+                "description": "GC content after filtering",
+                "max": 100,
+                "min": 0,
+                "suffix": "%",
+                "scale": "Blues",
+                "modify": lambda x: x * 100.0,
+            },
+            "pct_surviving": {
+                "title": "% PF",
+                "description": "Percent reads passing filter",
+                "max": 100,
+                "min": 0,
+                "suffix": "%",
+                "scale": "BuGn",
+            },
+            "pct_adapter": {
+                "title": "% Adapter",
+                "description": "Percentage adapter-trimmed reads",
+                "max": 100,
+                "min": 0,
+                "suffix": "%",
+                "scale": "RdYlGn-rev",
+            },
         }
 
         self.general_stats_addcols(self.fastp_data, headers)
@@ -401,13 +405,14 @@ class MultiqcModule(BaseMultiqcModule):
     def fastp_filtered_reads_chart(self):
         """Function to generate the fastp filtered reads bar plot"""
         # Specify the order of the different possible categories
-        keys = OrderedDict()
-        keys["filtering_result_passed_filter_reads"] = {"name": "Passed Filter"}
-        keys["filtering_result_low_quality_reads"] = {"name": "Low Quality"}
-        keys["filtering_result_too_many_N_reads"] = {"name": "Too Many N"}
-        keys["filtering_result_low_complexity_reads"] = {"name": "Low Complexity"}
-        keys["filtering_result_too_short_reads"] = {"name": "Too Short"}
-        keys["filtering_result_too_long_reads"] = {"name": "Too Long"}
+        keys = {
+            "filtering_result_passed_filter_reads": {"name": "Passed Filter"},
+            "filtering_result_low_quality_reads": {"name": "Low Quality"},
+            "filtering_result_too_many_N_reads": {"name": "Too Many N"},
+            "filtering_result_low_complexity_reads": {"name": "Low Complexity"},
+            "filtering_result_too_short_reads": {"name": "Too Short"},
+            "filtering_result_too_long_reads": {"name": "Too Long"},
+        }
 
         # Config for the plot
         pconfig = {
@@ -474,19 +479,19 @@ class MultiqcModule(BaseMultiqcModule):
         config = {
             "read1_before_filtering": {
                 "name": "Read 1: Before filtering",
-                "ylab": "R1 Before filtering: {}".format(label),
+                "ylab": f"R1 Before filtering: {label}",
             },
             "read1_after_filtering": {
                 "name": "Read 1: After filtering",
-                "ylab": "R1 After filtering: {}".format(label),
+                "ylab": f"R1 After filtering: {label}",
             },
             "read2_before_filtering": {
                 "name": "Read 2: Before filtering",
-                "ylab": "R2 Before filtering: {}".format(label),
+                "ylab": f"R2 Before filtering: {label}",
             },
             "read2_after_filtering": {
                 "name": "Read 2: After filtering",
-                "ylab": "R2 After filtering: {}".format(label),
+                "ylab": f"R2 After filtering: {label}",
             },
         }
         for k in config:
