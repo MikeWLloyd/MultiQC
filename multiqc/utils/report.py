@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """ MultiQC report module. Holds the output from each
 module. Is available to subsequent modules. Contains
 helper functions to generate markup for report. """
@@ -272,12 +270,11 @@ def get_filelist(run_module_names):
                             file_search_stats[key] = file_search_stats.get(key, 0) + 1
                             file_matched = True
                         # Don't keep searching this file for other modules
-                        if not sp.get("shared", False):
+                        if not sp.get("shared", False) and key not in config.filesearch_file_shared:
                             runtimes["sp"][key] = runtimes["sp"].get(key, 0) + (time.time() - start)
                             return True
                         # Don't look at other patterns for this module
-                        else:
-                            break
+                        break
                 runtimes["sp"][key] = runtimes["sp"].get(key, 0) + (time.time() - start)
 
         return file_matched
