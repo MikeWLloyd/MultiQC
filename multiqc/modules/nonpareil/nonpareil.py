@@ -1,11 +1,13 @@
-""" MultiQC module to parse output from nonpareil """
-
+"""MultiQC module to parse output from nonpareil"""
 
 import logging
+from typing import List
+
 import numpy as np
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.plots.plotly.line import Series
 from multiqc.utils import mqc_colour
 
 
@@ -24,7 +26,7 @@ class MultiqcModule(BaseMultiqcModule):
     def __init__(self):
         # Initialise the parent object
         super(MultiqcModule, self).__init__(
-            name="nonpareil",
+            name="Nonpareil",
             anchor="nonpareil",
             href="https://github.com/lmrodriguezr/nonpareil",
             info="Estimate metagenomic coverage and sequence diversity ",
@@ -49,7 +51,7 @@ class MultiqcModule(BaseMultiqcModule):
         if len(self.data_by_sample) == 0:
             raise ModuleNoSamplesFound
         log.info(f"Found {len(self.data_by_sample)} reports")
-        self.write_data_file(self.data_by_sample, "nonpareil")
+        self.write_data_file(self.data_by_sample, "multiqc_nonpareil")
 
         # Add versions
         for s_name, data in self.data_by_sample.items():
@@ -314,13 +316,11 @@ class MultiqcModule(BaseMultiqcModule):
     def nonpareil_redundancy_plot(self):
         """Make the redundancy plot for nonpareil"""
 
-        esconfig = {
-            "dashStyle": "Dash",
-            "lineWidth": 2,
-            "marker": {"enabled": False},
-            "enableMouseTracking": True,
-            "showInLegend": False,
-        }
+        extra_series_config = dict(
+            dash="dash",
+            width=2,
+            showlegend=False,
+        )
 
         data_colors_default = mqc_colour.mqc_colour_scale().get_colours(self.plot_colours)
         data_colors = {
@@ -334,10 +334,10 @@ class MultiqcModule(BaseMultiqcModule):
             {"name": "Model"},
         ]
         data_plot = list()
-        extra_series = list()
+        extra_series: List[List[Series]] = []
         for idx, dataset in enumerate(data_labels):
             data_plot.append(dict())
-            extra_series.append(list())
+            extra_series.append([])
             for s_name, data in self.data_by_sample.items():
                 if dataset["name"] == "Observed":
                     data_plot[idx][s_name] = data["nonpareil_observed"]
@@ -346,10 +346,14 @@ class MultiqcModule(BaseMultiqcModule):
                 elif dataset["name"] == "Combined":
                     data_plot[idx][s_name] = data["nonpareil_observed"]
                     if data["nonpareil_has.model"]:
-                        extra_series[idx].append(dict(esconfig))
-                        extra_series[idx][-1]["name"] = s_name
-                        extra_series[idx][-1]["data"] = [[x, y] for x, y in data["nonpareil_model"].items()]
-                        extra_series[idx][-1]["color"] = data_colors[s_name]
+                        extra_series[idx].append(
+                            Series(
+                                name=s_name,
+                                pairs=[(x, y) for x, y in data["nonpareil_model"].items()],
+                                color=data_colors[s_name],
+                                **extra_series_config,
+                            )
+                        )
 
         pconfig = {
             "id": "nonpareil-redundancy-plot",
@@ -360,9 +364,9 @@ class MultiqcModule(BaseMultiqcModule):
             "xmin": 1e-3,
             "ymin": 0,
             "ymax": 100,
-            "xDecimals": True,
-            "yDecimals": True,
-            "xLog": True,
+            "x_decimals": True,
+            "y_decimals": True,
+            "xlog": True,
             "tt_label": "{point.x:.2f} Mbp: {point.y:.2f}",
             "extra_series": extra_series,
             "data_labels": data_labels,

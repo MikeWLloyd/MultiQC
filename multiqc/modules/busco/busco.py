@@ -1,10 +1,9 @@
-""" MultiQC module to parse output from BUSCO """
-
+"""MultiQC module to parse output from BUSCO"""
 
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -82,7 +81,7 @@ class MultiqcModule(BaseMultiqcModule):
             self.add_data_source(f)
 
     def busco_plot(self, lin):
-        """Make the HighCharts HTML for the BUSCO plot for a particular lineage"""
+        """Make the HTML for the BUSCO plot for a particular lineage"""
 
         data = {}
         for s_name in self.busco_data:

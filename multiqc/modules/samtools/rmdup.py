@@ -1,4 +1,4 @@
-""" MultiQC module to parse output from Samtools rmdup """
+"""MultiQC module to parse output from Samtools rmdup"""
 
 import logging
 import re
@@ -54,9 +54,9 @@ class RmdupReportMixin:
         }
         pconfig = {
             "id": "samtools_rmdup_plot",
-            "title": "Samtools rmdup: Duplicate alignments",
+            "title": "Samtools: rmdup: Duplicate alignments",
             "ylab": "Number of reads",
-            "yDecimals": False,
+            "y_decimals": False,
         }
         self.add_section(
             name="Duplicates removed",

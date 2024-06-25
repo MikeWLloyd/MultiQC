@@ -1,9 +1,8 @@
-""" MultiQC module to parse output from Samtools """
-
+"""MultiQC module to parse output from Samtools"""
 
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 
 from .stats import StatsReportMixin
 from .flagstat import FlagstatReportMixin
@@ -34,8 +33,8 @@ class MultiqcModule(
         # Initialise the parent object
         super(MultiqcModule, self).__init__(
             name="Samtools",
-            anchor="Samtools",
-            target="Samtools",
+            anchor="samtools",
+            target="samtools",
             href="http://www.htslib.org",
             info=" is a suite of programs for interacting with high-throughput sequencing data.",
             doi="10.1093/bioinformatics/btp352",
@@ -51,7 +50,7 @@ class MultiqcModule(
         if n["stats"] > 0:
             log.info(f"Found {n['stats']} stats reports")
 
-        n["flagstat"] = self.parse_samtools_flagstats()
+        n["flagstat"] = self.parse_samtools_flagstat()
         if n["flagstat"] > 0:
             log.info(f"Found {n['flagstat']} flagstat reports")
 

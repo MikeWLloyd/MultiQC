@@ -1,10 +1,10 @@
-""" MultiQC submodule to parse output from Picard TargetedPcrMetrics """
+"""MultiQC submodule to parse output from Picard TargetedPcrMetrics"""
 
 import logging
 
 from multiqc.modules.picard import util
 from multiqc.plots import bargraph
-from multiqc.utils import config
+from multiqc import config
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def parse_reports(module):
     data_by_sample = module.ignore_samples(data_by_sample)
     histogram_by_sample = module.ignore_samples(histogram_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -124,7 +124,7 @@ def parse_reports(module):
         "title": "Picard: PCR Amplicon Bases",
         "ylab": "# Bases",
         "cpswitch_counts_label": "# Bases",
-        "hide_zero_cats": False,
+        "hide_empty": False,
     }
 
     module.add_section(
@@ -143,4 +143,4 @@ def parse_reports(module):
     )
 
     # Return the number of detected samples to the parent module
-    return len(data_by_sample)
+    return data_by_sample.keys()

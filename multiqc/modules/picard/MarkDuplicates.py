@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard MarkDuplicates """
+"""MultiQC submodule to parse output from Picard MarkDuplicates"""
 
 import logging
 import math
@@ -12,7 +12,10 @@ from multiqc.plots import bargraph
 log = logging.getLogger(__name__)
 
 
-def parse_reports(module, sp_key="picard/markdups"):
+def parse_reports(
+    module,
+    sp_key="picard/markdups",
+):
     """
     Find Picard MarkDuplicates reports and parse their data.
     Note that this function is also used by the biobambam2 module, that's why
@@ -140,7 +143,7 @@ def parse_reports(module, sp_key="picard/markdups"):
     # Filter to strip out ignored sample names
     data_by_sample = module.ignore_samples(data_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -226,7 +229,7 @@ def parse_reports(module, sp_key="picard/markdups"):
     )
 
     # Return the number of detected samples to the parent module
-    return len(data_by_sample)
+    return data_by_sample.keys()
 
 
 def calculate_percentage_duplication(d):

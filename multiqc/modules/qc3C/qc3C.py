@@ -1,5 +1,4 @@
-""" MultiQC module to parse output from qc3C """
-
+"""MultiQC module to parse output from qc3C"""
 
 import itertools
 import json
@@ -10,7 +9,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph, table
 
 log = logging.getLogger(__name__)
@@ -505,7 +504,6 @@ class MultiqcModule(BaseMultiqcModule):
     def bam_longrange_plot(self):
         config = {
             "id": "qc3C_bam_longrange_plot",
-            "namespace": "qc3C",
             "title": "qc3C: BAM mode long-range pairs",
             "ylab": "Number of Reads",
             "cpswitch_counts_label": "Number of Reads",
@@ -524,10 +522,9 @@ class MultiqcModule(BaseMultiqcModule):
     def bam_acceptance_plot(self):
         config = {
             "id": "qc3C_bam_acceptance_plot",
-            "namespace": "qc3C",
             "title": "qc3C: BAM mode read parsing results",
             "ylab": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "cpswitch_counts_label": "Number of Reads",
         }
 
@@ -544,7 +541,7 @@ class MultiqcModule(BaseMultiqcModule):
         return bargraph.plot(self.qc3c_data["bam"], categories, config)
 
     def bam_signal_table(self):
-        config = {"id": "qc3C_bam_signal_table", "namespace": "qc3C", "hide_zero_cats": False, "col1_header": "Sample"}
+        config = {"id": "qc3C_bam_signal_table", "namespace": "qc3C", "hide_empty": False, "col1_header": "Sample"}
 
         headers = {
             "b_unobs_fraction": {
@@ -567,7 +564,7 @@ class MultiqcModule(BaseMultiqcModule):
         return table.plot(self.qc3c_data["bam"], headers, config)
 
     def bam_hicpro_table(self):
-        config = {"id": "qc3C_bam_hicpro_table", "namespace": "qc3C", "hide_zero_cats": False, "col1_header": "Sample"}
+        config = {"id": "qc3C_bam_hicpro_table", "namespace": "qc3C", "hide_empty": False, "col1_header": "Sample"}
 
         headers = {
             "b_p_informative_fr": {"title": "Valid FR", "min": 0, "max": 100, "suffix": "%", "scale": "Greens"},
@@ -613,10 +610,9 @@ class MultiqcModule(BaseMultiqcModule):
     def bam_valid_plot(self):
         config = {
             "id": "qc3C_bam_valid_plot",
-            "namespace": "qc3C",
             "title": "qc3C: BAM mode valid vs invalid HiC-Pro categories",
             "ylab": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "cpswitch_counts_label": "Number of Reads",
         }
 
@@ -634,10 +630,9 @@ class MultiqcModule(BaseMultiqcModule):
     def bam_junction_plot(self):
         config = {
             "id": "qc3C_bam_junction_plot",
-            "namespace": "qc3C",
             "title": "qc3C: BAM mode read-thru ligation product frequency",
             "ylab": "Number of reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "use_legend": False,
         }
 
@@ -656,21 +651,19 @@ class MultiqcModule(BaseMultiqcModule):
                     "value": self.qc3c_data["bam"][smpl]["b_obs_insert_median"],
                     "color": "#D8E2DC",
                     "width": 2,
-                    "dashStyle": "ShortDashDot",
+                    "dash": "dashdot",
                 }
             )
 
         config = {
             "id": "qc3C_bam_fragment_histogram",
             "title": "qc3C: BAM mode distribution of pair separation",
-            "namespace": "qc3C",
             "cpswitch_counts_label": "Density",
             "logswitch": True,
             "logswitch_active": True,
             "logswitch_label": "Log10 [Density]",
-            "xLog": True,
-            # 'yLog': True,
-            "xPlotLines": median_lines,
+            "xlog": True,
+            "x_lines": median_lines,
             "xlab": "Log10 [Separation]",
             "ylab": "Density",
             "tt_label": "x:{point.x:.0f} bp, y:{point.y:.8f}",
@@ -698,12 +691,16 @@ class MultiqcModule(BaseMultiqcModule):
                 "modify": MultiqcModule._drop_time,
                 "hidden": True,
             },
-            "k_mode": {"title": "Run Mode", "description": "Analysis mode used", "hidden": True},
+            "k_mode": {
+                "title": "Run Mode",
+                "description": "Analysis mode used",
+                "hidden": True,
+            },
             "k_kmer_size": {
                 "title": "k",
                 "description": "Library k-mer size",
                 "min": 0,
-                "format": "{:d}",
+                "format": "{:,d}",
                 "scale": False,
                 "hidden": True,
             },
@@ -773,10 +770,9 @@ class MultiqcModule(BaseMultiqcModule):
     def kmer_acceptance_plot(self):
         config = {
             "id": "qc3C_kmer_acceptance_plot",
-            "namespace": "qc3C",
             "title": "qc3C: K-mer mode read parsing results",
             "ylab": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "cpswitch_counts_label": "Number of Reads",
         }
 
@@ -795,10 +791,9 @@ class MultiqcModule(BaseMultiqcModule):
     def kmer_signal_plot(self):
         config = {
             "id": "qc3C_kmer_signal_plot",
-            "namespace": "qc3C",
             "title": "qc3C: K-mer mode signal content",
             "ylab": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "stacking": None,
             "cpswitch": False,
             "cpswitch_c_active": False,
@@ -814,10 +809,9 @@ class MultiqcModule(BaseMultiqcModule):
     def kmer_junction_plot(self):
         config = {
             "id": "qc3C_kmer_frequency_plot",
-            "namespace": "qc3C",
             "title": "qc3C: K-mer mode putative ligation product frequency",
             "ylab": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "use_legend": False,
         }
 
@@ -845,7 +839,7 @@ class MultiqcModule(BaseMultiqcModule):
             log.warning(f"Could not parse qc3C JSON: '{f['fn']}'")
             return
 
-        s_name = self.clean_s_name(os.path.basename(f["root"]), f, root=os.path.dirname(f["root"]))
+        s_name = self.clean_s_name(os.path.basename(os.path.abspath(f["root"])), f, root=os.path.dirname(f["root"]))
         if s_name in self.qc3c_data:
             log.debug(f"Duplicate sample name found! Overwriting: {f['s_name']}")
 

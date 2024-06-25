@@ -1,5 +1,6 @@
 # coding: utf-8
-""" MultiQC submodule to parse output from Samtools markdup """
+"""MultiQC submodule to parse output from Samtools markdup"""
+
 import json
 import logging
 import re
@@ -28,7 +29,7 @@ class MarkdupReportMixin:
 
         for f in self.find_log_files("samtools/markdup_txt"):
             raw_d = dict()
-            for line in f["contents_lines"]:
+            for line in f["f"].splitlines():
                 if ":" in line:
                     key, value = line.split(":")
                     try:
@@ -85,7 +86,7 @@ class MarkdupReportMixin:
             d["duplicate_optical_total"] = d["duplicate_pair_optical"] + d["duplicate_single_optical"]
             d["duplicate_optical_fraction"] = d["duplicate_optical_total"] / n_reads if n_reads > 0 else 0.0
             d["duplicate_fraction"] = d["duplicate_total"] / n_reads if n_reads > 0 else 0.0
-            d["duplicate_paired_non_optical"] = d["duplicate_pair"] - d["duplicate_pair_optical"]
+            d["duplicate_pair_non_optical"] = d["duplicate_pair"] - d["duplicate_pair_optical"]
             d["duplicate_single_non_optical"] = d["duplicate_single"] - d["duplicate_single_optical"]
             d["duplicate_non_primary_non_optical"] = d["duplicate_non_primary"] - d["duplicate_non_primary_optical"]
             d["non_duplicate"] = d["paired"] + d["single"] - d["duplicate_total"]
@@ -163,7 +164,7 @@ class MarkdupReportMixin:
         # Bar plot
         pconfig = {
             "id": "samtools-markdup-fraction",
-            "title": "Markdup: duplicate categories",
+            "title": "Samtools: markdup: duplicate categories",
             "ylab": "SAM Records",
         }
 

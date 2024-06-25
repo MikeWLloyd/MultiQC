@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import islice
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, table
 
 log = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class MultiqcModule(BaseMultiqcModule):
                     "id": "bcl2fastq_lane_counts",
                     "title": "bcl2fastq: Clusters by lane",
                     "ylab": "Number of clusters",
-                    "hide_zero_cats": False,
+                    "hide_empty": False,
                 },
             ),
         )
@@ -110,7 +110,7 @@ class MultiqcModule(BaseMultiqcModule):
                 {
                     "id": "bcl2fastq_sample_counts",
                     "title": "bcl2fastq: Clusters by sample",
-                    "hide_zero_cats": False,
+                    "hide_empty": False,
                     "ylab": "Number of clusters",
                     "data_labels": ["Index mismatches", "Counts per lane"],
                 },
@@ -129,8 +129,6 @@ class MultiqcModule(BaseMultiqcModule):
                     "id": "bcl2fastq_undetermined",
                     "title": "bcl2fastq: Undetermined barcodes by lane",
                     "ylab": "Reads",
-                    "tt_percentages": False,
-                    "use_legend": True,
                     "sort_samples": False,  # keep top barcode on top
                 },
             ),
@@ -472,7 +470,7 @@ class MultiqcModule(BaseMultiqcModule):
         table_config = {
             "namespace": "bcl2fastq",
             "id": "bcl2fastq-lane-stats-table",
-            "table_title": "bcl2fastq Lane Statistics",
+            "title": "bcl2fastq Lane Statistics",
             "col1_header": "Run ID - Lane",
         }
         return table.plot(self.bcl2fastq_bylane, headers, table_config)

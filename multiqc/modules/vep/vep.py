@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from VEP """
-
+"""MultiQC module to parse output from VEP"""
 
 import ast
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, table
 from multiqc.utils import mqc_colour
 
@@ -184,7 +183,7 @@ class MultiqcModule(BaseMultiqcModule):
         table_config = {
             "id": "vep-general-stats",
             "namespace": "VEP",
-            "table_title": "VEP General Statistics",
+            "title": "VEP General Statistics",
         }
         table_data = {s_name: self.vep_data[s_name]["General statistics"] for s_name in self.vep_data}
 
@@ -204,7 +203,7 @@ class MultiqcModule(BaseMultiqcModule):
         color_list = ["Oranges", "Reds", "Blues", "Greens"]
         for order, header in enumerate(cat_names):
             table_cats[header] = {
-                "name": header,
+                "title": header,
                 "format": "{:,.0f}",
                 "scale": color_list[order % 4],
             }
@@ -218,7 +217,7 @@ class MultiqcModule(BaseMultiqcModule):
         self.add_section(
             name="General Statistics",
             anchor="vep-general-statistics",
-            helptext="Table showing general statistics of VEP annotaion run",
+            helptext="Table showing general statistics of VEP annotation run",
             plot=table.plot(table_data, table_cats, table_config),
         )
 

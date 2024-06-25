@@ -1,5 +1,4 @@
-""" Core MultiQC module to parse output from custom script output """
-
+"""Core MultiQC module to parse output from custom script output"""
 
 import base64
 import json
@@ -7,19 +6,19 @@ import logging
 import os
 import re
 from collections import defaultdict
+from typing import List, Dict
 
 import yaml
 
-from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
-from multiqc.plots import bargraph, beeswarm, heatmap, linegraph, scatter, table
-from multiqc.utils import report
+from multiqc import config, report
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.plots import bargraph, violin, heatmap, linegraph, scatter, table
 
 # Initialise the logger
 log = logging.getLogger(__name__)
 
 
-def custom_module_classes():
+def custom_module_classes() -> List[BaseMultiqcModule]:
     """
     MultiQC Custom Content class. This module does a lot of different
     things depending on the input and is as flexible as possible.
@@ -32,7 +31,7 @@ def custom_module_classes():
     # up many different types of data from many different sources.
     # Second level keys should be 'config' and 'data'. Data key should then
     # contain sample names, and finally data.
-    cust_mods = defaultdict(lambda: defaultdict(lambda: dict()))
+    cust_mod_by_id: Dict[str, Dict[str, Dict]] = defaultdict(lambda: defaultdict(lambda: dict()))
 
     # Dictionary to hold search patterns - start with those defined in the config
     search_patterns = ["custom_content"]
@@ -50,18 +49,18 @@ def custom_module_classes():
         # Data supplied in with config (e.g. from a multiqc_config.yaml file in working directory)
         if "data" in f:
             try:
-                cust_mods[c_id]["data"].update(f["data"])
+                cust_mod_by_id[c_id]["data"].update(f["data"])
             except ValueError:
                 # HTML plot type doesn't have a data sample-id key, so just take the whole chunk of data
-                cust_mods[c_id]["data"] = f["data"]
-            cust_mods[c_id]["config"].update({k: v for k, v in f.items() if k != "data"})
-            cust_mods[c_id]["config"]["id"] = cust_mods[c_id]["config"].get("id", c_id)
+                cust_mod_by_id[c_id]["data"] = f["data"]
+            cust_mod_by_id[c_id]["config"].update({k: v for k, v in f.items() if k != "data"})
+            cust_mod_by_id[c_id]["config"]["id"] = cust_mod_by_id[c_id]["config"].get("id", c_id)
             continue
 
         # Custom Content ID has search patterns in the config
         if c_id in report.files:
-            cust_mods[c_id]["config"] = f
-            cust_mods[c_id]["config"]["id"] = cust_mods[c_id]["config"].get("id", c_id)
+            cust_mod_by_id[c_id]["config"] = f
+            cust_mod_by_id[c_id]["config"]["id"] = cust_mod_by_id[c_id]["config"].get("id", c_id)
             search_patterns.append(c_id)
             continue
 
@@ -111,7 +110,7 @@ def custom_module_classes():
                         "data": img_html,
                     }
                     # If the search pattern 'k' has an associated custom content section config, use it
-                    parsed_data.update(cust_mods.get(k, {}).get("config", {}))
+                    parsed_data.update(cust_mod_by_id.get(k, {}).get("config", {}))
                 elif f_extension == ".html":
                     parsed_data = {"id": f["s_name"], "plot_type": "html", "data": f["f"]}
                     parsed_data.update(_find_html_file_header(f))
@@ -124,10 +123,10 @@ def custom_module_classes():
                     c_id = parsed_data.get("id", k)
                     if len(parsed_data.get("data", {})) > 0:
                         if isinstance(parsed_data["data"], dict):
-                            cust_mods[c_id]["data"].update(parsed_data["data"])
+                            cust_mod_by_id[c_id]["data"].update(parsed_data["data"])
                         else:
-                            cust_mods[c_id]["data"] = parsed_data["data"]
-                        cust_mods[c_id]["config"].update({j: k for j, k in parsed_data.items() if j != "data"})
+                            cust_mod_by_id[c_id]["data"] = parsed_data["data"]
+                        cust_mod_by_id[c_id]["config"].update({j: k for j, k in parsed_data.items() if j != "data"})
                     else:
                         log.warning(f"No data found in {f['fn']}")
 
@@ -139,14 +138,14 @@ def custom_module_classes():
                     if m_config is not None:
                         c_id = m_config.get("id", k)
                         # Update the base config with anything parsed from the file
-                        b_config = cust_mods.get(c_id, {}).get("config", {})
+                        b_config = cust_mod_by_id.get(c_id, {}).get("config", {})
                         b_config.update(m_config)
                         # Now set the module config to the merged dict
                         m_config = dict(b_config)
                         s_name = m_config.get("sample_name")
                     else:
                         c_id = k
-                        m_config = cust_mods.get(c_id, {}).get("config", {})
+                        m_config = cust_mod_by_id.get(c_id, {}).get("config", {})
 
                     # Guess sample name if not given
                     if s_name is None:
@@ -180,12 +179,12 @@ def custom_module_classes():
                                 c_id = conf.get("id")
                             # heatmap - special data type
                             if isinstance(parsed_data, list):
-                                cust_mods[c_id]["data"] = parsed_data
+                                cust_mod_by_id[c_id]["data"] = parsed_data
                             elif conf.get("plot_type") == "html":
-                                cust_mods[c_id]["data"] = parsed_data
+                                cust_mod_by_id[c_id]["data"] = parsed_data
                             else:
-                                cust_mods[c_id]["data"].update(parsed_data)
-                            cust_mods[c_id]["config"].update(conf)
+                                cust_mod_by_id[c_id]["data"].update(parsed_data)
+                            cust_mod_by_id[c_id]["config"].update(conf)
                     except (IndexError, AttributeError, TypeError):
                         log.error(f"Unexpected parsing error for {f['fn']}", exc_info=True)
                         raise  # testing
@@ -198,20 +197,20 @@ def custom_module_classes():
             log.debug(f"No samples found: custom content ({k})")
 
     # Filter to strip out ignored sample names
-    for k in cust_mods:
-        cust_mods[k]["data"] = bm.ignore_samples(cust_mods[k]["data"])
+    for k in cust_mod_by_id:
+        cust_mod_by_id[k]["data"] = bm.ignore_samples(cust_mod_by_id[k]["data"])
 
     # Remove any configs that have no data
-    remove_cids = [k for k in cust_mods if len(cust_mods[k]["data"]) == 0]
+    remove_cids = [k for k in cust_mod_by_id if len(cust_mod_by_id[k]["data"]) == 0]
     for k in remove_cids:
-        del cust_mods[k]
+        del cust_mod_by_id[k]
 
-    if len(cust_mods) == 0:
+    if len(cust_mod_by_id) == 0:
         raise ModuleNoSamplesFound
 
     # Go through each data type
     parsed_modules = dict()
-    for c_id, mod in cust_mods.items():
+    for c_id, mod in cust_mod_by_id.items():
         # General Stats
         if mod["config"].get("plot_type") == "generalstats":
             gsheaders = mod["config"].get("pconfig")
@@ -243,7 +242,7 @@ def custom_module_classes():
         # Initialise this new module class and append to list
         else:
             # Is this file asking to be a sub-section under a parent section?
-            mod_id = mod["config"].get("parent_id", c_id)
+            mod_id = mod["config"].get("parent_id", mod["config"].get("anchor", c_id + "-module"))
             # If we have any custom configuration from a MultiQC config file, update here
             # This is done earlier for tsv files too, but we do it here so that it overwrites what was in the file
             if mod_id in mod_cust_config:
@@ -271,7 +270,7 @@ def custom_module_classes():
 
     # If we only have General Stats columns then there are no module outputs
     if len(sorted_modules) == 0:
-        if mod["config"].get("plot_type") == "generalstats":
+        if len(cust_mod_by_id) == 1 and list(cust_mod_by_id.values())[0]["config"].get("plot_type") == "generalstats":
             sorted_modules = [bm]
         else:
             raise ModuleNoSamplesFound
@@ -293,19 +292,25 @@ class MultiqcModule(BaseMultiqcModule):
         if modname == "" or modname is None:
             modname = "Custom Content"
 
+        anchor = mod["config"].get("section_anchor", c_id)
+
         # Initialise the parent object
         super(MultiqcModule, self).__init__(
             name=modname,
-            anchor=mod["config"].get("section_anchor", c_id),
+            anchor=anchor,
             href=mod["config"].get("section_href"),
             info=mod_info,
             extra=mod["config"].get("extra"),
-            # No DOI here.. // doi=
+            doi=mod["config"].get("doi"),
         )
 
         # Don't repeat the Custom Content name in the subtext
-        if self.info or self.extra:
-            self.intro = f"<p>{self.info}</p>{self.extra}"
+        if self.info or self.extra or self.doi_link:
+            self.intro = f"<p>{self.info}{self.doi_link}</p>{self.extra}"
+
+        if "custom_content" in config.run_modules:
+            # To allow file_search.include_or_exclude_modules() correctly filter these modules
+            config.custom_content_modules.append(anchor)
 
     def update_init(self, c_id, mod):
         """
@@ -322,8 +327,8 @@ class MultiqcModule(BaseMultiqcModule):
         if self.extra is None or self.info == "":
             self.extra = mod["config"].get("extra", None)
         # This needs overwriting again as it has already run on init
-        if self.info or self.extra:
-            self.intro = f"<p>{self.info}</p>{self.extra}"
+        if self.info or self.extra or self.doi_link:
+            self.intro = f"<p>{self.info}{self.doi_link}</p>{self.extra}"
 
     def add_cc_section(self, c_id, mod):
         section_name = mod["config"].get("section_name", c_id.replace("_", " ").title())
@@ -344,63 +349,64 @@ class MultiqcModule(BaseMultiqcModule):
         if not isinstance(mod["data"], list):
             mod["data"] = [mod["data"]]
 
-        for i, ds in enumerate(mod["data"]):
-            # Save the data if it's not a html string
-            if not isinstance(ds, str):
-                did = pconfig["id"]
-                if i > 0:
-                    did = f"{did}_{i}"
-                self.write_data_file(ds, f"multiqc_{did}")
-                pconfig["save_data_file"] = False
+        plot_type = mod["config"].get("plot_type")
 
         # Try to coerce x-axis to numeric
-        if mod["config"].get("plot_type") in ["linegraph", "scatter"]:
+        if plot_type in ["linegraph", "scatter"]:
             try:
                 mod["data"] = [{k: {float(x): v[x] for x in v} for k, v in ds.items()} for ds in mod["data"]]
             except ValueError:
                 pass
 
         # Table
-        if mod["config"].get("plot_type") == "table":
-            pconfig["sortRows"] = pconfig.get("sortRows", False)
+        if plot_type == "table":
             headers = mod["config"].get("headers")
-            plot = table.plot(mod["data"], headers, pconfig)
+
+            # handle some legacy fields for backwards compat
+            sort_rows = pconfig.pop("sortRows", None)
+            if sort_rows is not None:
+                pconfig["sort_rows"] = sort_rows
+            no_violin = pconfig.pop("no_beeswarm", None)
+            if no_violin is not None:
+                pconfig["no_violin"] = no_violin
+
+            plot = table.plot(mod["data"], headers=headers, pconfig=pconfig)
 
         # Bar plot
-        elif mod["config"].get("plot_type") == "bargraph":
+        elif plot_type == "bargraph":
             mod["data"] = [{str(k): v for k, v in ds.items()} for ds in mod["data"]]
-            plot = bargraph.plot(mod["data"], mod["config"].get("categories"), pconfig)
+            plot = bargraph.plot(mod["data"], mod["config"].get("categories"), pconfig=pconfig)
 
         # Line plot
-        elif mod["config"].get("plot_type") == "linegraph":
-            plot = linegraph.plot(mod["data"], pconfig)
+        elif plot_type == "linegraph":
+            plot = linegraph.plot(mod["data"], pconfig=pconfig)
 
         # Scatter plot
-        elif mod["config"].get("plot_type") == "scatter":
-            plot = scatter.plot(mod["data"], pconfig)
+        elif plot_type == "scatter":
+            plot = scatter.plot(mod["data"], pconfig=pconfig)
 
         # Heatmap
-        elif mod["config"].get("plot_type") == "heatmap":
-            plot = heatmap.plot(mod["data"], mod["config"].get("xcats"), mod["config"].get("ycats"), pconfig)
+        elif plot_type == "heatmap":
+            plot = heatmap.plot(mod["data"], mod["config"].get("xcats"), mod["config"].get("ycats"), pconfig=pconfig)
 
-        # Beeswarm plot
-        elif mod["config"].get("plot_type") == "beeswarm":
-            plot = beeswarm.plot(mod["data"], pconfig)
+        # Violin plot
+        elif plot_type in ["violin", "beeswarm"]:
+            plot = violin.plot(mod["data"], pconfig=pconfig)
 
         # Raw HTML
-        elif mod["config"].get("plot_type") == "html":
+        elif plot_type == "html":
             if len(mod["data"]) > 1:
                 log.warning(f"HTML plot type found with more than one dataset in {c_id}")
             content = mod["data"][0]
 
         # Raw image file as html
-        elif mod["config"].get("plot_type") == "image":
+        elif plot_type == "image":
             if len(mod["data"]) > 1:
                 log.warning(f"Image plot type found with more than one dataset in {c_id}")
             content = mod["data"][0]
 
         # Not supplied
-        elif mod["config"].get("plot_type") is None:
+        elif plot_type is None:
             log.warning(f"Plot type not found for content ID '{c_id}'")
 
         # Not recognised
@@ -410,6 +416,16 @@ class MultiqcModule(BaseMultiqcModule):
                     mod["config"].get("plot_type"), c_id
                 )
             )
+
+        if plot is not None:
+            for i, ds in enumerate(mod["data"]):
+                # Save the data if it's not a html string
+                if not isinstance(ds, str):
+                    did = plot.pconfig.id
+                    if i > 0:
+                        did = f"{did}_{i}"
+                    self.write_data_file(ds, f"multiqc_{did}")
+                    plot.pconfig.save_data_file = False
 
         # Don't use exactly the same title / description text as the main module
         if section_name == self.name:
@@ -428,17 +444,21 @@ def _find_file_header(f):
             hlines.append(line[1:])
     if len(hlines) == 0:
         return None
-    hconfig = None
     try:
         hconfig = yaml.safe_load("\n".join(hlines))
-        assert isinstance(hconfig, dict)
-    except yaml.YAMLError as e:
-        log.warning(f"Could not parse comment file header for MultiQC custom content: {f['fn']}")
-        log.debug(e)
-    except AssertionError:
-        log.debug(f"Custom Content comment file header looked wrong: {hconfig}")
+    except yaml.YAMLError:
+        raise ValueError(
+            f"Could not parse comment file header for MultiQC custom content: {f['fn']}. "
+            + "Note that everything behind a comment character '#' is expected to in YAML format. "
+            + "To provide column names in a TSV or CSV file, put them as the first raw without fencing it with a '#'."
+        )
     else:
-        return hconfig
+        if not isinstance(hconfig, dict):
+            raise ValueError(
+                "Custom Content comment file header looked wrong. It's expected to "
+                + f"be parsed to a dict, got {type(hconfig)}: {hconfig}"
+            )
+    return hconfig
 
 
 def _find_html_file_header(f):

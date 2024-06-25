@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from QUAST """
-
+"""MultiQC module to parse output from QUAST"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, table
 
 # Initialise the logger
@@ -26,14 +25,15 @@ class MultiqcModule(BaseMultiqcModule):
         # Get modifiers from config file
         qconfig = getattr(config, "quast_config", {})
 
-        self.contig_length_multiplier = qconfig.get("contig_length_multiplier", 0.001)
-        self.contig_length_suffix = qconfig.get("contig_length_suffix", "Kbp")
-
-        self.total_length_multiplier = qconfig.get("total_length_multiplier", 0.000001)
-        self.total_length_suffix = qconfig.get("total_length_suffix", "Mbp")
-
-        self.total_number_contigs_multiplier = qconfig.get("total_number_contigs_multiplier", 0.001)
-        self.total_number_contigs_suffix = qconfig.get("total_number_contigs_suffix", "K")
+        # Have to prefix these with underscore, because they are being used in the "modify" lambdas,
+        # and at the same time multiqc wipes all non-underscored module attributes after module is run,
+        # so "modify" lambdas will be broken after execution.
+        self._contig_length_multiplier = qconfig.get("contig_length_multiplier", 0.001)
+        self._contig_length_suffix = qconfig.get("contig_length_suffix", "Kbp")
+        self._total_length_multiplier = qconfig.get("total_length_multiplier", 0.000001)
+        self._total_length_suffix = qconfig.get("total_length_suffix", "Mbp")
+        self._total_number_contigs_multiplier = qconfig.get("total_number_contigs_multiplier", 0.001)
+        self._total_number_contigs_suffix = qconfig.get("total_number_contigs_suffix", "K")
 
         # Find and load any QUAST reports
         self.quast_data = {}
@@ -130,20 +130,20 @@ class MultiqcModule(BaseMultiqcModule):
 
         headers = {
             "N50": {
-                "title": f"N50 ({self.contig_length_suffix})",
+                "title": f"N50 ({self._contig_length_suffix})",
                 "description": "N50 is the contig length such that using longer or equal length contigs produces half (50%) of the bases of the assembly (kilo base pairs)",
                 "min": 0,
-                "suffix": self.contig_length_suffix,
+                "suffix": self._contig_length_suffix,
                 "scale": "RdYlGn",
-                "modify": lambda x: x * self.contig_length_multiplier,
+                "modify": lambda x: x * self._contig_length_multiplier,
             },
             "Total length": {
-                "title": f"Assembly Length ({self.total_length_suffix})",
-                "description": f"The total number of bases in the assembly ({self.total_length_suffix}).",
+                "title": f"Assembly Length ({self._total_length_suffix})",
+                "description": f"The total number of bases in the assembly ({self._total_length_suffix}).",
                 "min": 0,
-                "suffix": self.total_length_suffix,
+                "suffix": self._total_length_suffix,
                 "scale": "YlGn",
-                "modify": lambda x: x * self.total_length_multiplier,
+                "modify": lambda x: x * self._total_length_multiplier,
             },
         }
         self.general_stats_addcols(self.quast_data, headers)
@@ -152,58 +152,58 @@ class MultiqcModule(BaseMultiqcModule):
         """Write some more statistics about the assemblies in a table."""
         headers = {
             "N50": {
-                "title": f"N50 ({self.contig_length_suffix})",
+                "title": f"N50 ({self._contig_length_suffix})",
                 "description": "N50 is the contig length such that using longer or equal length contigs produces half (50%) of the bases of the assembly.",
                 "min": 0,
-                "suffix": self.contig_length_suffix,
+                "suffix": self._contig_length_suffix,
                 "scale": "RdYlGn",
-                "modify": lambda x: x * self.contig_length_multiplier,
+                "modify": lambda x: x * self._contig_length_multiplier,
             },
             "N75": {
-                "title": f"N75 ({self.contig_length_suffix})",
+                "title": f"N75 ({self._contig_length_suffix})",
                 "description": "N75 is the contig length such that using longer or equal length contigs produces 75% of the bases of the assembly",
                 "min": 0,
-                "suffix": self.contig_length_suffix,
+                "suffix": self._contig_length_suffix,
                 "scale": "RdYlGn",
-                "modify": lambda x: x * self.contig_length_multiplier,
+                "modify": lambda x: x * self._contig_length_multiplier,
             },
             "L50": {
-                "title": f"L50 ({self.total_number_contigs_suffix})" if self.total_number_contigs_suffix else "L50",
+                "title": f"L50 ({self._total_number_contigs_suffix})" if self._total_number_contigs_suffix else "L50",
                 "description": "L50 is the number of contigs larger than N50, i.e. the minimum number of contigs comprising 50% of the total assembly length.",
                 "min": 0,
-                "suffix": self.total_number_contigs_suffix,
+                "suffix": self._total_number_contigs_suffix,
                 "scale": "RdYlGn-rev",
-                "modify": lambda x: x * self.total_number_contigs_multiplier,
+                "modify": lambda x: x * self._total_number_contigs_multiplier,
             },
             "L75": {
-                "title": f"L75 ({self.total_number_contigs_suffix})" if self.total_number_contigs_suffix else "L75",
+                "title": f"L75 ({self._total_number_contigs_suffix})" if self._total_number_contigs_suffix else "L75",
                 "description": "L75 is the number of contigs larger than N75, i.e. the minimum number of contigs comprising 75% of the total assembly length.",
                 "min": 0,
-                "suffix": self.total_number_contigs_suffix,
+                "suffix": self._total_number_contigs_suffix,
                 "scale": "RdYlGn-rev",
-                "modify": lambda x: x * self.total_number_contigs_multiplier,
+                "modify": lambda x: x * self._total_number_contigs_multiplier,
             },
             "Largest contig": {
-                "title": f"Largest contig ({self.contig_length_suffix})",
+                "title": f"Largest contig ({self._contig_length_suffix})",
                 "description": "The size of the largest contig of the assembly",
                 "min": 0,
-                "suffix": self.contig_length_suffix,
+                "suffix": self._contig_length_suffix,
                 "scale": "YlGn",
-                "modify": lambda x: x * self.contig_length_multiplier,
+                "modify": lambda x: x * self._contig_length_multiplier,
             },
             "Total length": {
-                "title": f"Length ({self.total_length_suffix})",
+                "title": f"Length ({self._total_length_suffix})",
                 "description": "The total number of bases in the assembly.",
                 "min": 0,
-                "suffix": self.total_length_suffix,
+                "suffix": self._total_length_suffix,
                 "scale": "YlGn",
-                "modify": lambda x: x * self.total_length_multiplier,
+                "modify": lambda x: x * self._total_length_multiplier,
             },
             "# misassemblies": {
                 "title": "Misassemblies",
                 "description": "The number of positions in the assembled contigs where the left flanking sequence aligns over 1 kbp away from the right flanking sequence on the reference (relocation) or they overlap on more than 1 kbp (relocation) or flanking sequences align on different strands (inversion) or different chromosomes (translocation).",
                 "scale": "RdYlGn-rev",
-                "format": "{,:.0f}",
+                "format": "{:,.0f}",
             },
             "# mismatches per 100 kbp": {
                 "title": "Mismatches/100kbp",
@@ -288,7 +288,7 @@ class MultiqcModule(BaseMultiqcModule):
             "id": "quast_num_contigs",
             "title": "QUAST: Number of Contigs",
             "ylab": "# Contigs",
-            "yDecimals": False,
+            "y_decimals": False,
         }
 
         return bargraph.plot(data, categories, pconfig)

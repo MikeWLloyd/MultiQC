@@ -1,12 +1,11 @@
-""" MultiQC module to parse output from Kallisto """
-
+"""MultiQC module to parse output from Kallisto"""
 
 import logging
 import os
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -121,8 +120,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.kallisto_data, headers)
 
     def kallisto_alignment_plot(self):
-        """Make the HighCharts HTML to plot the alignment rates"""
-
         # Specify the order of the different possible categories
         keys = {
             "pseudoaligned_reads": {"color": "#437bb1", "name": "Pseudoaligned"},

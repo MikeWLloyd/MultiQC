@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard VariantCallingMetrics """
+"""MultiQC submodule to parse output from Picard VariantCallingMetrics"""
 
 import logging
 
@@ -17,7 +17,7 @@ def parse_reports(module):
     # Filter to strip out ignored sample names
     data_by_sample = module.ignore_samples(data_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -103,7 +103,7 @@ def parse_reports(module):
         plot=compare_variants_label_plot(data_by_sample),
     )
 
-    return len(data_by_sample)
+    return data_by_sample.keys()
 
 
 def collect_data(module):
@@ -211,7 +211,7 @@ def compare_variant_type_plot(data):
         "id": "picard_variantCallingMetrics_variant_type",
         "title": "Picard: Variants Called",
         "ylab": "Counts of Variants",
-        "hide_zero_cats": False,
+        "hide_empty": False,
         "data_labels": [{"name": "Total"}, {"name": "Known"}, {"name": "Novel"}],
     }
     return bargraph.plot(

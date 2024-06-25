@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard GcBiasMetrics """
+"""MultiQC submodule to parse output from Picard GcBiasMetrics"""
 
 import logging
 
@@ -102,9 +102,9 @@ def parse_reports(module):
     data_by_sample = module.ignore_samples(data_by_sample)
     summary_data_by_sample = module.ignore_samples(summary_data_by_sample)
 
-    n_samples = len(data_by_sample.keys() | summary_data_by_sample.keys())
-    if n_samples == 0:
-        return 0
+    samples = data_by_sample.keys() | summary_data_by_sample.keys()
+    if not samples:
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -119,12 +119,11 @@ def parse_reports(module):
             "xlab": "% GC",
             "xmin": 0,
             "xmax": 100,
-            "xDecimals": False,
             "ymin": 0,
-            "yCeiling": 10,
+            "y_clipmax": 10,
             "tt_label": "<b>{point.x} %GC</b>: {point.y:.2f}",
-            "yPlotLines": [
-                {"value": 1, "color": "#999999", "width": 2, "dashStyle": "LongDash"},
+            "y_lines": [
+                {"value": 1, "color": "#999999", "width": 2, "dash": "longdash"},
             ],
         }
         module.add_section(
@@ -140,4 +139,4 @@ def parse_reports(module):
         module.write_data_file(summary_data_by_sample, f"multiqc_{module.anchor}_gcbias")
 
     # Return the number of detected samples to the parent module
-    return n_samples
+    return samples

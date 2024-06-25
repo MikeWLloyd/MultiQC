@@ -1,13 +1,12 @@
-""" MultiQC module to parse output from bustools inspect """
-
+"""MultiQC module to parse output from bustools inspect"""
 
 import json
 import logging
 import os
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, table
-from multiqc.utils import config
+from multiqc import config
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -230,7 +229,7 @@ class MultiqcModule(BaseMultiqcModule):
     def bustools_section(self):
         """Add bargraphs showing the mean UMIs per barcode and percentages in whitelist"""
         # add the summary table
-        tconfig = {"namespace": "Bustools", "id": "bustools_summary", "table_title": "Bustools Summary Table"}
+        tconfig = {"namespace": "Bustools", "id": "bustools_summary", "title": "Bustools Summary Table"}
         self.add_section(
             name="Summary table",
             anchor="bustools-inspect",
@@ -258,7 +257,6 @@ class MultiqcModule(BaseMultiqcModule):
                     "id": "bus_umis",
                     "title": "Bustools: Mean number of UMIs per barcode per sample",
                     "cpswitch": False,
-                    "tt_percentages": False,
                     "ylab": "Mean UMIs per barcode",
                 },
             ),
@@ -287,7 +285,6 @@ class MultiqcModule(BaseMultiqcModule):
                     "ymax": 100,
                     "ymin": 0,
                     "cpswitch": False,
-                    "tt_percentages": False,
                     "ylab": "Percentage of barcodes / reads with barcodes in the whitelist",
                     "stacking": None,
                     "ysuffix": "%",

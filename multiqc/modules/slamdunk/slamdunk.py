@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from Slamdunk """
-
+"""MultiQC module to parse output from Slamdunk"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph, scatter, table
 
 # Initialise the logger
@@ -455,8 +454,7 @@ class MultiqcModule(BaseMultiqcModule):
             "stacking": "normal",
             "tt_decimals": 2,
             "tt_suffix": "%",
-            "tt_percentages": False,
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "data_labels": [
                 "Plus Strand +",
                 "Minus Strand -",
@@ -499,8 +497,7 @@ class MultiqcModule(BaseMultiqcModule):
             "stacking": "normal",
             "tt_decimals": 2,
             "tt_suffix": "%",
-            "tt_percentages": False,
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         self.add_section(
@@ -539,7 +536,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Slamdunk: Non-T>C mismatches over reads",
             "ylab": "Percent mismatches %",
             "xlab": "Position in read",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymin": 0,
             "tt_label": "<b>Pos {point.x}</b>: {point.y:.2f} %",
             "data_labels": [
@@ -553,7 +550,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Slamdunk: T>C conversions over reads",
             "ylab": "Percent converted %",
             "xlab": "Position in read",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymin": 0,
             "tt_label": "<b>Pos {point.x}</b>: {point.y:.2f} %",
             "data_labels": [
@@ -586,7 +583,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Slamdunk: Non-T>C mutations over 3' UTR ends",
             "ylab": "Percent mismatches %",
             "xlab": "Position in the static last 250bp window of 3' UTR",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymin": 0,
             "tt_label": "<b>Pos {point.x}</b>: {point.y:.2f} %",
             "data_labels": [
@@ -600,7 +597,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Slamdunk: T>C conversions over 3' UTR ends",
             "ylab": "Percent converted %",
             "xlab": "Position in the static last 250bp window of 3' UTR",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymin": 0,
             "tt_label": "<b>Pos {point.x}</b>: {point.y:.2f} %",
             "data_labels": [

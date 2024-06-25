@@ -1,9 +1,8 @@
-""" MultiQC module to parse output from BioBloom Tools """
-
+"""MultiQC module to parse output from BioBloom Tools"""
 
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -96,7 +95,7 @@ class MultiqcModule(BaseMultiqcModule):
             "id": "biobloom_tools",
             "title": "BioBloom Tools: Alignment counts per species",
             "ylab": "Number of hits",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
         cats["multiMatch"] = {"name": "Multiple Genomes", "color": "#820000"}
         cats["noMatch"] = {"name": "No Match", "color": "#cccccc"}

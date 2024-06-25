@@ -1,10 +1,10 @@
-""" MultiQC submodule to parse output from Samtools stats """
+"""MultiQC submodule to parse output from Samtools stats"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.plots import bargraph, beeswarm
+from multiqc.plots import bargraph, violin
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -146,14 +146,14 @@ class StatsReportMixin:
             "min": 0,
             "modify": lambda x: float(x) * config.read_count_multiplier,
             "suffix": config.read_count_prefix,
-            "decimalPlaces": 2,
+            "tt_decimals": 2,
             "shared_key": "read_count",
         }
         bases = {
             "min": 0,
             "modify": lambda x: float(x) * config.base_count_multiplier,
             "suffix": config.base_count_prefix,
-            "decimalPlaces": 2,
+            "tt_decimals": 2,
             "shared_key": "base_count",
         }
         keys["raw_total_sequences"] = dict(reads, **{"title": "Total sequences"})
@@ -189,12 +189,12 @@ class StatsReportMixin:
             name="Alignment stats",
             anchor="samtools-stats",
             description="This module parses the output from <code>samtools stats</code>. All numbers in millions.",
-            plot=beeswarm.plot(
+            plot=violin.plot(
                 self.samtools_stats,
                 keys,
                 {
                     "id": "samtools-stats-dp",
-                    "title": "Samtools stats: Alignment Stats",
+                    "title": "Samtools: stats: Alignment Stats",
                 },
             ),
         )
@@ -245,7 +245,6 @@ class StatsReportMixin:
 
 
 def alignment_chart(data):
-    """Make the HighCharts HTML to plot the alignment rates"""
     keys = {
         "reads_mapped_MQ1": {"color": "#437bb1", "name": "Mapped (with MQ>0)"},
         "reads_MQ0": {"color": "#FF9933", "name": "MQ0"},
@@ -255,7 +254,7 @@ def alignment_chart(data):
     # Config for the plot
     plot_conf = {
         "id": "samtools_alignment_plot",
-        "title": "Samtools stats: Alignment Scores",
+        "title": "Samtools: stats: Alignment Scores",
         "ylab": "# Reads",
         "cpswitch_counts_label": "Number of Reads",
     }

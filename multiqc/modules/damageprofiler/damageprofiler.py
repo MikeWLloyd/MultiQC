@@ -1,10 +1,9 @@
-""" MultiQC module to parse output from DamageProfiler """
-
+"""MultiQC module to parse output from DamageProfiler"""
 
 import json
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import linegraph
 
 # Initialise the logger
@@ -133,7 +132,7 @@ class MultiqcModule(BaseMultiqcModule):
 
         headers = {
             f"{readend}1": {
-                "id": f"misinc-stats-1st-{readend}-{substitution}",
+                "rid": f"misinc-stats-1st-{readend}-{substitution}",
                 "title": f"{readend} {substitution} 1st base",
                 "description": f"{readend} 1st base substitution frequency for {substitution}",
                 "max": 100,
@@ -143,7 +142,7 @@ class MultiqcModule(BaseMultiqcModule):
                 "modify": lambda x: x * 100.0,
             },
             f"{readend}2": {
-                "id": f"misinc-stats-2nd-{readend}-{substitution}",
+                "rid": f"misinc-stats-2nd-{readend}-{substitution}",
                 "title": f"{readend} {substitution} 2nd base",
                 "description": f"{readend} 2nd base substitution frequency for {substitution}",
                 "max": 100,
@@ -226,8 +225,9 @@ class MultiqcModule(BaseMultiqcModule):
             "title": f"DamageProfiler: Read length distribution - {orientation} ",
             "ylab": "Number of reads",
             "xlab": "Readlength (bp)",
-            "xDecimals": False,
-            "tt_label": "{point.y} reads of length {point.x}",
+            "x_decimals": False,
+            "tt_label": "{point.y} reads of length {point.x} bp",
+            "ysuffix": " reads",
             "ymin": 0,
             "xmin": 0,
         }
@@ -253,7 +253,8 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "DamageProfiler: 3' G>A misincorporation plot",
             "ylab": "% G to A substituted",
             "xlab": "Nucleotide position from 3'",
-            "tt_label": "{point.y:.2f} % G>A misincorporations at nucleotide position {point.x}",
+            "tt_label": "{point.y:.2f}% G>A misincorporations at nucleotide position {point.x}",
+            "ysuffix": "%",
             "ymin": 0,
             "xmin": 1,
         }
@@ -279,7 +280,8 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "DamageProfiler: 5' C>T misincorporation plot",
             "ylab": "% C to T substituted",
             "xlab": "Nucleotide position from 5'",
-            "tt_label": "{point.y:.2f} % C>T misincorporations at nucleotide position {point.x}",
+            "tt_label": "{point.y:.2f}% C>T misincorporations at nucleotide position {point.x}",
+            "ysuffix": "%",
             "ymin": 0,
             "xmin": 1,
         }

@@ -1,11 +1,11 @@
-""" MultiQC module to parse output from pycoQC """
+"""MultiQC module to parse output from pycoQC"""
 
 import logging
 
 import yaml
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph, table
 
 log = logging.getLogger(__name__)
@@ -283,7 +283,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "pycoQC: Read Length",
             "ylab": "Read Density",
             "xlab": "Basecalled Length (bp)",
-            "xLog": True,
+            "xlog": True,
             "data_labels": [
                 {"name": "Passing Reads", "ylab": "Read Density", "xlab": "Basecalled Length (bp)"},
                 {"name": "All Reads", "ylab": "Read Density", "xlab": "Basecalled Length (bp)"},

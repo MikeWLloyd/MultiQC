@@ -1,12 +1,11 @@
-""" MultiQC module to parse output from Bismark """
-
+"""MultiQC module to parse output from Bismark"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
-from multiqc.plots import bargraph, beeswarm, linegraph
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.plots import bargraph, violin, linegraph
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -400,7 +399,7 @@ class MultiqcModule(BaseMultiqcModule):
         config = {
             "id": "bismark_strand_alignment",
             "title": "Bismark: Alignment to Individual Bisulfite Strands",
-            "ylab": "% Reads",
+            "ylab": "Reads",
             "cpswitch_c_active": False,
             "cpswitch_counts_label": "Number of Reads",
         }
@@ -425,7 +424,7 @@ class MultiqcModule(BaseMultiqcModule):
         config = {
             "id": "bismark_deduplication",
             "title": "Bismark: Deduplication",
-            "ylab": "% Reads",
+            "ylab": "Reads",
             "cpswitch_c_active": False,
             "cpswitch_counts_label": "Number of Reads",
         }
@@ -440,7 +439,7 @@ class MultiqcModule(BaseMultiqcModule):
         """Make the methylation plot"""
 
         # Config for the plot
-        defaults = {"max": 100, "min": 0, "suffix": "%", "decimalPlaces": 1}
+        defaults = {"max": 100, "min": 0, "suffix": "%", "tt_decimals": 1}
         keys = {
             "percent_cpg_meth": dict(defaults, **{"title": "Methylated CpG"}),
             "percent_chg_meth": dict(defaults, **{"title": "Methylated CHG"}),
@@ -450,7 +449,7 @@ class MultiqcModule(BaseMultiqcModule):
         self.add_section(
             name="Cytosine Methylation",
             anchor="bismark-methylation",
-            plot=beeswarm.plot(
+            plot=violin.plot(
                 self.bismark_data["methextract"],
                 keys,
                 {
@@ -472,7 +471,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Bismark: M-Bias",
             "ylab": "% Methylation",
             "xlab": "Position (bp)",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymax": 100,
             "ymin": 0,
             "tt_label": "<b>{point.x} bp</b>: {point.y:.1f}%",

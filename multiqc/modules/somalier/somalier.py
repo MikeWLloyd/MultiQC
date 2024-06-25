@@ -1,5 +1,4 @@
-""" MultiQC module to parse output from somalier """
-
+"""MultiQC module to parse output from somalier"""
 
 import csv
 import logging
@@ -9,7 +8,7 @@ from math import isinf, isnan
 
 import spectra
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, heatmap, scatter, table
 from multiqc.utils import mqc_colour
 
@@ -540,6 +539,7 @@ class MultiqcModule(BaseMultiqcModule):
                 "id": "somalier_het_check_plot",
                 "title": "Somalier: Sample Observed Heterozygosity",
                 "xlab": "Mean depth",
+                "xsuffix": "x",
                 "ylab": "Standard deviation of allele-balance",
             }
 
@@ -614,7 +614,7 @@ class MultiqcModule(BaseMultiqcModule):
                 "id": "somalier_ancestry_barplot",
                 "title": "Somalier: Sample Predicted Ancestry Proportions",
                 "cpswitch": False,
-                "hide_zero_cats": False,
+                "hide_empty": False,
                 "ylab": "Predicted Ancestry",
                 "tt_suffix": "%",
             }

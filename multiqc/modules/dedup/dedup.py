@@ -1,12 +1,12 @@
-""" MultiQC module to parse output from DeDup """
+"""MultiQC module to parse output from DeDup"""
 
 import json
 import logging
 from json import JSONDecodeError
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
-from multiqc.utils import config
+from multiqc import config
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -150,8 +150,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.dedup_data, headers)
 
     def dedup_alignment_plot(self):
-        """Make the HighCharts HTML to plot the duplication rates"""
-
         # Specify the order of the different possible categories
         keys = {
             "mapped_after_dedup": {"name": "Unique Retained"},

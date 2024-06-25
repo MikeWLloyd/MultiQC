@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from odgi stats """
-
+"""MultiQC module to parse output from odgi stats"""
 
 import logging
 
 import yaml
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, table
 
 # Initialise the logger
@@ -240,7 +239,7 @@ class MultiqcModule(BaseMultiqcModule):
         tconfig = {
             "id": "odgi_table",
             "namespace": "ODGI",
-            "table_title": "ODGI Stats",
+            "title": "ODGI Stats",
         }
         self.add_section(
             name="Detailed ODGI stats table.",
@@ -269,7 +268,7 @@ class MultiqcModule(BaseMultiqcModule):
             "id": "odgi_sum_of_path_nodes_distances_plot",
             "title": "ODGI: Sum of path node distances",
             "ylab": "Distance",
-            "yDecimals": False,
+            "y_decimals": False,
             "cpswitch": False,
             "logswitch": True,
             "logswitch_active": True,
@@ -311,7 +310,7 @@ class MultiqcModule(BaseMultiqcModule):
             "id": "odgi_mean_links_length_plot",
             "title": "ODGI: Mean links length",
             "ylab": "Distance",
-            "yDecimals": False,
+            "y_decimals": False,
             "cpswitch": False,
             "logswitch": True,
             "logswitch_active": True,

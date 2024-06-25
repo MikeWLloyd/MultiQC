@@ -1,10 +1,9 @@
-""" MultiQC module to parse output from HISAT2 """
-
+"""MultiQC module to parse output from HISAT2"""
 
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -123,8 +122,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.hisat2_data, headers)
 
     def hisat2_alignment_plot(self):
-        """Make the HighCharts HTML to plot the alignment rates"""
-
         # Split the data into SE and PE
         sedata = {}
         pedata = {}

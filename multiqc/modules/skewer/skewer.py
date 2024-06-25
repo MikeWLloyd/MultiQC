@@ -1,10 +1,9 @@
-""" MultiQC module to parse logs from Skewer """
-
+"""MultiQC module to parse logs from Skewer"""
 
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import linegraph
 
 # Initialise the logger
@@ -76,7 +75,7 @@ class MultiqcModule(BaseMultiqcModule):
         pconfig = {
             "id": "skewer_read_length_histogram",
             "title": "Skewer: Read Length Distribution after trimming",
-            "xDecimals": False,
+            "x_decimals": False,
             "ylab": "% of Reads",
             "xlab": "Read Length",
             "xmin": 0,

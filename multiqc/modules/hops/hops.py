@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from HOPS postprocessing script """
-
+"""MultiQC module to parse output from HOPS postprocessing script"""
 
 import json
 import logging
 from json import JSONDecodeError
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import heatmap
 
 log = logging.getLogger(__name__)
@@ -95,8 +94,8 @@ class MultiqcModule(BaseMultiqcModule):
         pconfig = {
             "id": "hops-heatmap",
             "title": "HOPS: Potential Candidates",
-            "xTitle": "Node",
-            "yTitle": "Sample",
+            "xlab": "Node",
+            "ylab": "Sample",
             "square": False,
             "colstops": [
                 [1, "#ededed"],
@@ -104,9 +103,9 @@ class MultiqcModule(BaseMultiqcModule):
                 [3, "#F2B26C"],
                 [4, "#AD2A2B"],
             ],
-            "decimalPlaces": 0,
+            "tt_decimals": 0,
             "legend": True,
-            "datalabels": False,
+            "display_values": False,
             "xcats_samples": False,
         }
 

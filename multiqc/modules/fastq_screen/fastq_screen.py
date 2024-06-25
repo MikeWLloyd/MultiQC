@@ -1,10 +1,9 @@
-""" MultiQC module to parse output from FastQ Screen """
-
+"""MultiQC module to parse output from FastQ Screen"""
 
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -213,8 +212,8 @@ class MultiqcModule(BaseMultiqcModule):
         pconfig = {
             "id": "fastq_screen_bisulfite_plot",
             "title": "FastQ Screen: Bisulfite Mapping Strand Orientation",
-            "hide_zero_cats": False,
-            "ylab": "Percentages",
+            "hide_empty": False,
+            "ylab": "Reads",
             "data_labels": [],
         }
 

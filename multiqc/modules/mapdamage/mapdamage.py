@@ -1,10 +1,9 @@
-""" MultiQC module to parse base misincorporation output from mapdamage2 """
-
+"""MultiQC module to parse base misincorporation output from mapdamage2"""
 
 import logging
 import os
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import linegraph
 
 # Initialise the logger
@@ -173,7 +172,7 @@ class MultiqcModule(BaseMultiqcModule):
 
         headers = {
             f"mapdamage-{readend}1": {
-                "id": f"misinc-stats-1st-{readend}-{substitution}",
+                "rid": f"misinc-stats-1st-{readend}-{substitution}",
                 "title": f"{readend} {substitution} 1st base",
                 "description": f"{readend} 1st base substitution frequency for {substitution}",
                 "max": 100,
@@ -183,7 +182,7 @@ class MultiqcModule(BaseMultiqcModule):
                 "modify": lambda x: x * 100.0,
             },
             f"mapdamage-{readend}2": {
-                "id": f"misinc-stats-2nd-{readend}-{substitution}",
+                "rid": f"misinc-stats-2nd-{readend}-{substitution}",
                 "title": f"{readend} {substitution} 2nd base",
                 "description": f"{readend} 2nd base substitution frequency for {substitution}",
                 "max": 100,
@@ -231,7 +230,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": f"mapDamage: Read length distribution - {orientation} ",
             "ylab": "Number of reads",
             "xlab": "Readlength (bp)",
-            "xDecimals": False,
+            "x_decimals": False,
             "tt_label": "{point.y} reads of length {point.x}",
             "ymin": 0,
             "xmin": 0,

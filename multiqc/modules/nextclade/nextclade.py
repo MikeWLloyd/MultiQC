@@ -1,9 +1,9 @@
-""" MultiQC module to parse output from Nextclade """
+"""MultiQC module to parse output from Nextclade"""
 
 import csv
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import table
 
 # Initialise the logger
@@ -307,7 +307,7 @@ class MultiqcModule(BaseMultiqcModule):
         table_config = {
             "namespace": "Nextclade",
             "id": "nextclade_run_table",
-            "table_title": "Nextclade Run details",
+            "title": "Nextclade Run details",
         }
 
         return table.plot(self.nextclade_data, headers, table_config)

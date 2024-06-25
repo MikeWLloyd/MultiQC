@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard ExtractIlluminaBarcodes """
+"""MultiQC submodule to parse output from Picard ExtractIlluminaBarcodes"""
 
 import logging
 from collections import defaultdict
@@ -46,7 +46,7 @@ def parse_reports(module):
 
     data_by_lane = module.ignore_samples(data_by_lane)
     if len(data_by_lane) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -59,7 +59,7 @@ def parse_reports(module):
 
     per_lane_plot_config = {
         "id": f"plot-{module.anchor}-illuminabarcodemetrics-readsperlane",
-        "title": f"{module.name} ExtractIlluminaBarcodes: Reads per lane",
+        "title": f"{module.name}: ExtractIlluminaBarcodes: Reads per lane",
         "ylab": "Lane",
         "data_labels": [
             {"name": "Reads", "ylab": "Number of Reads"},
@@ -69,7 +69,7 @@ def parse_reports(module):
     }
     per_barcode_plot_config = {
         "id": f"plot-{module.anchor}-illuminabarcodemetrics-readsperbarcode",
-        "title": f"{module.name} ExtractIlluminaBarcodes: Reads per barcode",
+        "title": f"{module.name}: ExtractIlluminaBarcodes: Reads per barcode",
         "ylab": "Lane",
         "data_labels": [
             {"name": "Reads", "ylab": "Number of Reads"},
@@ -113,7 +113,7 @@ def parse_reports(module):
         ),
     )
     # Return the number of detected samples to the parent module
-    return len(data_by_lane)
+    return data_by_lane.keys()
 
 
 def reads_per_barcode(data):

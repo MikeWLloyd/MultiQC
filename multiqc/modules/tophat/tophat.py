@@ -1,12 +1,11 @@
-""" MultiQC module to parse output from Tophat """
-
+"""MultiQC module to parse output from Tophat"""
 
 import logging
 import os
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -129,8 +128,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.tophat_data, headers)
 
     def tophat_alignment_plot(self):
-        """Make the HighCharts HTML to plot the alignment rates"""
-
         # Specify the order of the different possible categories
         keys = {
             "aligned_not_multimapped_discordant": {"color": "#437bb1", "name": "Aligned"},

@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from Bowtie 1 """
-
+"""MultiQC module to parse output from Bowtie 1"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -120,8 +119,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.bowtie_data, headers)
 
     def bowtie_alignment_plot(self):
-        """Make the HighCharts HTML to plot the alignment rates"""
-
         # Specify the order of the different possible categories
         keys = {
             "reads_aligned": {"color": "#8bbc21", "name": "Aligned"},

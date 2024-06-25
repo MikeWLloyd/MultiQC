@@ -1,9 +1,9 @@
-""" MultiQC module to parse output from Librarian """
+"""MultiQC module to parse output from Librarian"""
 
 import logging
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import heatmap
 from multiqc.utils import mqc_colour
 
@@ -87,16 +87,17 @@ class MultiqcModule(BaseMultiqcModule):
             hm_data.append(sample_data)
 
         pconfig = {
+            "id": "librarian-library-type-plot",
             "title": "Librarian: Library Predictions",
-            "xTitle": "Library type",
-            "yTitle": "Sample name",
+            "xlab": "Library type",
+            "ylab": "Sample name",
             "min": 0,
             "max": 100,
             "square": False,
             "xcats_samples": False,
             "ycats_samples": True,
             "colstops": [[0, "#FFFFFF"], [1, "#FF0000"]],
-            "decimalPlaces": 0,
+            "tt_decimals": 0,
         }
 
         self.add_section(

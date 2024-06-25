@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from RSEM/rsem-calculate-expression """
-
+"""MultiQC module to parse output from RSEM/rsem-calculate-expression"""
 
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph
-from multiqc.utils import config
+from multiqc import config
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ class MultiqcModule(BaseMultiqcModule):
     def __init__(self):
         # Initialise the parent object
         super(MultiqcModule, self).__init__(
-            name="Rsem",
+            name="RSEM",
             anchor="rsem",
             href="https://deweylab.github.io/RSEM/",
             info="RSEM (RNA-Seq by Expectation-Maximization) is a software package for"
@@ -149,7 +148,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "RSEM: Mapped reads",
             "ylab": "# Reads",
             "cpswitch_counts_label": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         self.add_section(
@@ -167,7 +166,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "RSEM: Multimapping Rates",
             "ylab": "Counts",
             "xlab": "Number of alignments",
-            "xDecimals": False,
+            "x_decimals": False,
             "ymin": 0,
             "tt_label": "<b>{point.x} alignments</b>: {point.y:.0f}",
         }

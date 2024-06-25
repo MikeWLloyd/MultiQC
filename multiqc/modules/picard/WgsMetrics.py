@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard WgsMetrics """
+"""MultiQC submodule to parse output from Picard WgsMetrics"""
 
 import logging
 
@@ -79,7 +79,7 @@ def parse_reports(module):
     # Filter to strip out ignored sample names
     data_by_sample = module.ignore_samples(data_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -124,7 +124,7 @@ def parse_reports(module):
         covs = ["30"]
     for c in covs:
         headers[f"PCT_{c}X"] = {
-            "id": f"picard_target_bases_{c}X",
+            "rid": f"picard_target_bases_{c}X",
             "title": f"Bases ≥ {c}X",
             "description": f"Percent of target bases with coverage ≥ {c}X",
             "max": 100,
@@ -165,7 +165,11 @@ def parse_reports(module):
                     cumulative += v
                     data[s_name][k] = v
                     maxval = max(maxval, v)
-                    data_percent[s_name][k] = 100 - (cumulative / total) * 100
+                    pct_bases_cumulative = (cumulative / total) * 100
+                    pct_bases_with_greater_cov = 100 - pct_bases_cumulative
+                    pct_bases_current = (v / total) * 100
+                    pct_bases_with_greater_or_equal_cov = pct_bases_with_greater_cov + pct_bases_current
+                    data_percent[s_name][k] = pct_bases_with_greater_or_equal_cov
                 else:
                     break
 
@@ -175,7 +179,7 @@ def parse_reports(module):
             "title": "Picard: WGS Coverage",
             "ylab": "Percentage of Bases",
             "xlab": "Fold Coverage",
-            "xDecimals": False,
+            "x_decimals": False,
             "tt_label": "<b>{point.x} X</b>: {point.y:.1f}",
             "ymin": 0,
             "ymax": 100,
@@ -230,4 +234,4 @@ def parse_reports(module):
     )
 
     # Return the number of detected samples to the parent module
-    return len(data_by_sample)
+    return data_by_sample.keys()

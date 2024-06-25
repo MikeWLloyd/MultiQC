@@ -1,9 +1,9 @@
-""" MultiQC module to parse output from pbmarkdup"""
+"""MultiQC module to parse output from pbmarkdup"""
 
 import logging
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -110,7 +110,6 @@ class MultiqcModule(BaseMultiqcModule):
 
         general_stats_headers = {
             "unique_molecules": {
-                "id": "unique_molecules",
                 "title": "% Unique Molecules",
                 "description": "Percentage of unique molecules",
                 "suffix": "%",
@@ -120,7 +119,6 @@ class MultiqcModule(BaseMultiqcModule):
                 "scale": "RdYlGn",
             },
             "duplicate_reads": {
-                "id": "duplicate_erads",
                 "title": "% Duplicate Reads",
                 "description": "Percentage of duplicate reads",
                 "suffix": "%",

@@ -101,7 +101,7 @@ is not optimally configured, and will also make MultiQC exit early if a module c
 For example:
 
 ```bash
-multiqc --strict test_data
+multiqc --strict test-data
 ```
 
 Note that the automated MultiQC continuous integration testing runs in this mode,
@@ -367,7 +367,7 @@ files. You can do this by searching for a filename fragment, or a string
 within the file. It's possible to search for both (a match on either
 will return the file) and also to have multiple strings possible.
 
-First, add your default patterns to `multiqc/utils/search_patterns.yaml`
+First, add your default patterns to `multiqc/search_patterns.yaml`
 
 Each search has a yaml key, with one or more search criteria.
 

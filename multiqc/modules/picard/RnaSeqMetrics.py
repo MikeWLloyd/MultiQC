@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard RnaSeqMetrics """
+"""MultiQC submodule to parse output from Picard RnaSeqMetrics"""
 
 import logging
 
@@ -88,7 +88,7 @@ def parse_reports(module):
     data_by_sample = module.ignore_samples(data_by_sample)
     histogram_by_sample = module.ignore_samples(histogram_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
@@ -172,7 +172,7 @@ def parse_reports(module):
             "id": "picard_rnaseqmetrics_strand_plot",
             "title": "Picard: RnaSeqMetrics Strand Mapping",
             "ylab": "Number of reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
         module.add_section(
             name="RnaSeqMetrics Strand Mapping",
@@ -191,7 +191,7 @@ def parse_reports(module):
             "title": "Picard: Normalized Gene Coverage",
             "ylab": "Coverage",
             "xlab": "Percent through gene",
-            "xDecimals": False,
+            "x_decimals": False,
             "tt_label": "<b>{point.x}%</b>: {point.y:.0f}",
             "ymin": 0,
         }
@@ -202,4 +202,4 @@ def parse_reports(module):
         )
 
     # Return the number of detected samples to the parent module
-    return len(data_by_sample)
+    return data_by_sample.keys()

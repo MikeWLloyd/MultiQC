@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from ClipAndMerge """
-
+"""MultiQC module to parse output from ClipAndMerge"""
 
 import logging
 import os
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -102,8 +101,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.clipandmerge_data, headers)
 
     def clipandmerge_alignment_plot(self):
-        """Make the HighCharts HTML to plot the duplication rates"""
-
         # Specify the order of the different possible categories
         keys = {
             "merged_reads": {"name": "Merged Reads"},
@@ -119,7 +116,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "ClipAndMerge: Read merging results",
             "ylab": "# Reads",
             "cpswitch_counts_label": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         return bargraph.plot(self.clipandmerge_data, keys, config)

@@ -1,4 +1,4 @@
-""" MultiQC module to parse output from Space Ranger count """
+"""MultiQC module to parse output from Space Ranger count"""
 
 import json
 import logging
@@ -85,7 +85,7 @@ class SpaceRangerCountMixin:
                     {
                         "namespace": "Space Ranger Count",
                         "id": "spaceranger-count-warnings",
-                        "title": "Space Ranger Count: Warnings",
+                        "title": "Space Ranger: Count: Warnings",
                     },
                 ),
             )
@@ -100,7 +100,7 @@ class SpaceRangerCountMixin:
                 {
                     "namespace": "Space Ranger Count",
                     "id": "spaceranger-count-stats",
-                    "title": "Space Ranger Count: Summary stats",
+                    "title": "Space Ranger: Count: Summary stats",
                 },
             ),
         )
@@ -286,11 +286,11 @@ class SpaceRangerCountMixin:
             plots_conf["saturation"] = {
                 "config": {
                     "id": "mqc_spaceranger_count_saturation",
-                    "title": f"Space Ranger count: {summary['analysis_tab']['seq_saturation_plot']['help']['title']}",
+                    "title": f"Space Ranger: count: {summary['analysis_tab']['seq_saturation_plot']['help']['title']}",
                     "xlab": summary["analysis_tab"]["seq_saturation_plot"]["plot"]["layout"]["xaxis"]["title"],
                     "ylab": summary["analysis_tab"]["seq_saturation_plot"]["plot"]["layout"]["yaxis"]["title"],
-                    "yLog": False,
-                    "xLog": False,
+                    "ylog": False,
+                    "xlog": False,
                     "ymin": 0,
                     "ymax": 1,
                 },
@@ -312,11 +312,11 @@ class SpaceRangerCountMixin:
             plots_conf["genes"] = {
                 "config": {
                     "id": "mqc_spaceranger_count_genesXspot",
-                    "title": f"Space Ranger count: {summary['analysis_tab']['median_gene_plot']['help']['title']}",
+                    "title": f"Space Ranger: count: {summary['analysis_tab']['median_gene_plot']['help']['title']}",
                     "xlab": summary["analysis_tab"]["median_gene_plot"]["plot"]["layout"]["xaxis"]["title"],
                     "ylab": summary["analysis_tab"]["median_gene_plot"]["plot"]["layout"]["yaxis"]["title"],
-                    "yLog": False,
-                    "xLog": False,
+                    "ylog": False,
+                    "xlog": False,
                 },
                 "description": "Median gene counts per spot",
                 "helptext": summary["analysis_tab"]["median_gene_plot"]["help"]["helpText"],
@@ -336,11 +336,11 @@ class SpaceRangerCountMixin:
             plots_conf["genomic_dna"] = {
                 "config": {
                     "id": "mqc_spaceranger_count_genomic_dna",
-                    "title": f"Space Ranger count: {summary['analysis_tab']['gdna']['gems']['help']['title']}",
+                    "title": f"Space Ranger: count: {summary['analysis_tab']['gdna']['gems']['help']['title']}",
                     "xlab": summary["analysis_tab"]["gdna"]["plot"]["layout"]["xaxis"]["title"],
                     "ylab": summary["analysis_tab"]["gdna"]["plot"]["layout"]["yaxis"]["title"],
-                    "yLog": False,
-                    "xLog": False,
+                    "ylog": False,
+                    "xlog": False,
                 },
                 "description": "Estimated UMIs from Genomic DNA per Unspliced Probe",
                 "helptext": summary["analysis_tab"]["gdna"]["gems"]["help"]["data"][2][1][0]

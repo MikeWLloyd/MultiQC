@@ -1,5 +1,4 @@
-""" MultiQC module to parse output from Fastp """
-
+"""MultiQC module to parse output from Fastp"""
 
 import json
 import logging
@@ -7,7 +6,7 @@ import re
 from typing import Dict, Optional, Tuple
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph
 
 # Initialise the logger
@@ -15,10 +14,6 @@ log = logging.getLogger(__name__)
 
 
 class MultiqcModule(BaseMultiqcModule):
-    """
-    fastp module class
-    """
-
     def __init__(self):
         # Initialise the parent object
         super(MultiqcModule, self).__init__(
@@ -86,7 +81,7 @@ class MultiqcModule(BaseMultiqcModule):
                         "title": "Fastp: Duplication Rate",
                         "xlab": "Duplication level",
                         "ylab": "Read percent",
-                        "yCeiling": 100,
+                        "y_clipmax": 100,
                         "ymin": 0,
                         "tt_label": "{point.x}: {point.y:.2f}%",
                     },
@@ -106,7 +101,7 @@ class MultiqcModule(BaseMultiqcModule):
                         "title": "Fastp: Insert Size Distribution",
                         "xlab": "Insert size",
                         "ylab": "Read percent",
-                        "yCeiling": 100,
+                        "y_clipmax": 100,
                         "ymin": 0,
                         "tt_label": "{point.x}: {point.y:.2f}%",
                         "smooth_points": 300,
@@ -193,7 +188,6 @@ class MultiqcModule(BaseMultiqcModule):
                     f"Falling back to extracting it from the file name: "
                     f"\"{f['fn']}\" -> \"{s_name}\""
                 )
-                return None, {}
 
         self.add_data_source(f, s_name)
         return s_name, parsed_json
@@ -416,7 +410,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Fastp: Filtered Reads",
             "ylab": "# Reads",
             "cpswitch_counts_label": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
         return bargraph.plot(self.fastp_data, keys, pconfig)
 
@@ -456,18 +450,19 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "Fastp: Read N Content",
             "xlab": "Read Position",
             "ylab": "R1 Before filtering: Base Content Percent",
-            "yCeiling": 100,
-            "yMinRange": 5,
+            "y_clipmax": 100,
+            "y_minrange": 5,
             "ymin": 0,
             "tt_label": "{point.x}: {point.y:.2f}%",
             "data_labels": data_labels,
         }
         return linegraph.plot(pdata, pconfig)
 
-    def filter_pconfig_pdata_subplots(self, data, label):
+    @staticmethod
+    def filter_pconfig_pdata_subplots(data, label):
         data_labels = []
         pdata = []
-        config = {
+        for k, dl in {
             "read1_before_filtering": {
                 "name": "Read 1: Before filtering",
                 "ylab": f"R1 Before filtering: {label}",
@@ -484,10 +479,9 @@ class MultiqcModule(BaseMultiqcModule):
                 "name": "Read 2: After filtering",
                 "ylab": f"R2 After filtering: {label}",
             },
-        }
-        for k in config:
+        }.items():
             if sum([len(data[k][x]) for x in data[k]]) > 0:
-                data_labels.append(config[k])
+                data_labels.append(dl)
                 pdata.append(data[k])
 
         # Abort sample if no data

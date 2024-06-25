@@ -1,11 +1,10 @@
-""" MultiQC module to parse output files from VarScan2 """
-
+"""MultiQC module to parse output files from VarScan2"""
 
 import logging
 import re
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -199,7 +198,6 @@ class MultiqcModule(BaseMultiqcModule):
         self.general_stats_addcols(self.varscan2_data, headers)
 
     def varscan2_counts_barplot(self):
-        """Make the HighCharts HTML to plot the reported SNPs"""
         # 146 variant positions (106 SNP, 40 indel)
         # 12 were failed by the strand-filter
         # 99 variant positions reported (99 SNP, 0 indel)
@@ -221,7 +219,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "VarScan2: Variants detected",
             "ylab": "Number of SNPs",
             "cpswitch_counts_label": "Number of Variants",
-            "hide_zero_cats": False,
+            "hide_empty": False,
             "data_labels": [{"name": "SNPs", "ylab": "Number of SNPs"}, {"name": "INDELs", "ylab": "Number of INDELs"}],
         }
 

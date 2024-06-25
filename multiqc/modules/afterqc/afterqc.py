@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from Afterqc """
-
+"""MultiQC module to parse output from Afterqc"""
 
 import json
 import logging
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -150,6 +149,6 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "AfterQC: Filtered Reads",
             "ylab": "# Reads",
             "cpswitch_counts_label": "Number of Reads",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
         return bargraph.plot(self.afterqc_data, keys, pconfig)

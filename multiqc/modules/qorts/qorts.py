@@ -1,11 +1,10 @@
-""" MultiQC module to parse output from QoRTs """
-
+"""MultiQC module to parse output from QoRTs"""
 
 import logging
 import os
 import re
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -125,7 +124,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "QoRTs: Alignment Locations",
             "ylab": "# Read Pairs",
             "cpswitch_counts_label": "Number of Read Pairs",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         self.add_section(
@@ -156,7 +155,6 @@ class MultiqcModule(BaseMultiqcModule):
         )
 
     def qorts_splice_loci_barplot(self):
-        """Make the HighCharts HTML to plot the qorts splice loci"""
         # Specify the order of the different possible categories
         keys = [
             "SpliceLoci_Known_ManyReads",
@@ -177,7 +175,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "QoRTs: Splice Loci",
             "ylab": "# Splice Loci",
             "cpswitch_counts_label": "Number of Splice Loci",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         self.add_section(
@@ -213,7 +211,6 @@ class MultiqcModule(BaseMultiqcModule):
         )
 
     def qorts_splice_events_barplot(self):
-        """Make the HighCharts HTML to plot the qorts splice events"""
         # Specify the order of the different possible categories
         keys = [
             "SpliceEvents_KnownLociWithManyReads",
@@ -233,7 +230,7 @@ class MultiqcModule(BaseMultiqcModule):
             "title": "QoRTs: Splice Events",
             "ylab": "# Splice Events",
             "cpswitch_counts_label": "Number of Splice Events",
-            "hide_zero_cats": False,
+            "hide_empty": False,
         }
 
         self.add_section(

@@ -1,4 +1,4 @@
-""" MultiQC submodule to parse output from Picard HsMetrics """
+"""MultiQC submodule to parse output from Picard HsMetrics"""
 
 import logging
 from collections import defaultdict
@@ -152,14 +152,14 @@ def parse_reports(module):
     # Filter to strip out ignored sample names
     data_by_sample = module.ignore_samples(data_by_sample)
     if len(data_by_sample) == 0:
-        return 0
+        return set()
 
     # Superfluous function call to confirm that it is used in this module
     # Replace None with actual version if it is available
     module.add_software_version(None)
 
     # Write parsed data to a file
-    module.write_data_file(data_by_sample, f"multiqc_{module.anchor}_HsMetrics")
+    module.write_data_file(data_by_sample, f"multiqc_{module.id}_HsMetrics")
 
     # Swap question marks with -1
     for s_name in data_by_sample:
@@ -172,12 +172,12 @@ def parse_reports(module):
     # Add report section
     module.add_section(
         name="HSMetrics",
-        anchor=f"{module.anchor}_hsmetrics",
+        anchor=f"{module.id}_hsmetrics",
         plot=table.plot(
             data_by_sample,
             _get_table_headers(),
             {
-                "id": f"{module.anchor}_hsmetrics_table",
+                "id": f"{module.id}_hsmetrics_table",
                 "namespace": "HsMetrics",
                 "scale": "RdYlGn",
                 "min": 0,
@@ -196,7 +196,7 @@ def parse_reports(module):
     if hs_pen_plot is not None:
         module.add_section(
             name="HS Penalty",
-            anchor=f"{module.anchor}_hsmetrics_hs_penalty",
+            anchor=f"{module.id}_hsmetrics_hs_penalty",
             description='The "hybrid selection penalty" incurred to get 80% of target bases to a given coverage.',
             helptext="""
                 Can be used with the following formula:
@@ -209,7 +209,7 @@ def parse_reports(module):
         )
 
     # Return the number of detected samples to the parent module
-    return len(data_by_sample)
+    return data_by_sample.keys()
 
 
 def _general_stats_table(module, data):
@@ -254,7 +254,7 @@ def _general_stats_table(module, data):
             covs = ["30"]
         for c in covs:
             headers[f"PCT_TARGET_BASES_{c}X"] = {
-                "id": f"{module.anchor}_target_bases_{c}X",
+                "rid": f"{module.id}_target_bases_{c}X",
                 "title": f"Target Bases ≥ {c}X",
                 "description": f"Percent of target bases with coverage ≥ {c}X",
                 "max": 100,
@@ -262,7 +262,7 @@ def _general_stats_table(module, data):
                 "suffix": "%",
                 "format": "{:,.0f}",
                 "scale": "RdYlGn",
-                "modify": lambda x: util.multiply_hundred(x),
+                "modify": util.multiply_hundred,
             }
     module.general_stats_addcols(data, headers, namespace="HsMetrics")
 
@@ -352,18 +352,16 @@ def _generate_table_header_config(table_cols, hidden_table_cols):
             }
             if h.find("PCT") > -1:
                 headers[h]["title"] = headers[h]["title"]
-                headers[h]["modify"] = lambda x: x * 100.0
+                headers[h]["modify"] = util.multiply_hundred
                 headers[h]["max"] = 100
                 headers[h]["suffix"] = "%"
 
             elif h.find("READS") > -1:
                 headers[h]["title"] = f"{config.read_count_prefix} {headers[h]['title']}"
-                headers[h]["modify"] = lambda x: x * config.read_count_multiplier
                 headers[h]["shared_key"] = "read_count"
 
             elif h.find("BASES") > -1:
                 headers[h]["title"] = f"{config.base_count_prefix} {headers[h]['title']}"
-                headers[h]["modify"] = lambda x: x * config.base_count_multiplier
                 headers[h]["shared_key"] = "base_count"
 
             # Manual capitilisation for some strings
@@ -423,7 +421,7 @@ def hs_penalty_plot(self, data):
         "ylab": "Penalty",
         "ymin": 0,
         "xmin": 0,
-        "xDecimals": False,
+        "x_decimals": False,
         "tt_label": "<b>{point.x}X</b>: {point.y:.2f}%",
     }
 

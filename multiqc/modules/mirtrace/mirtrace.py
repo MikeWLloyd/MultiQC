@@ -1,10 +1,9 @@
-""" MultiQC module to parse output files from miRTrace """
-
+"""MultiQC module to parse output files from miRTrace"""
 
 import json
 import logging
 
-from multiqc.modules.base_module import BaseMultiqcModule, ModuleNoSamplesFound
+from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
 from multiqc.plots import bargraph, linegraph
 
 # Initialise the logger
@@ -242,9 +241,9 @@ class MultiqcModule(BaseMultiqcModule):
             "xlab": "Read Lenth (bp)",
             "ymin": 0,
             "xmin": 0,
-            "xDecimals": False,
+            "x_decimals": False,
             "tt_label": "<b>Read Length (bp) {point.x}</b>: {point.y} Read Count",
-            "xPlotBands": [
+            "x_bands": [
                 {"from": 40, "to": 50, "color": "#ffebd1"},
                 {"from": 26, "to": 40, "color": "#e2f5ff"},
                 {"from": 18, "to": 26, "color": "#e5fce0"},
@@ -352,7 +351,7 @@ class MultiqcModule(BaseMultiqcModule):
             "xlab": "Number of Sequencing Reads",
             "ymin": 0,
             "xmin": 1,
-            "xDecimals": False,
+            "x_decimals": False,
             "tt_label": "<b>Number of Sequencing Reads {point.x}</b>: {point.y} Distinct miRNA Count",
         }
 
