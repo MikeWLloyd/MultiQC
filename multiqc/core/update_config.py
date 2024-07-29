@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from multiqc import report, config
 from multiqc.core.exceptions import RunError
-from multiqc.core import init_log, plugin_hooks, strict_helpers
+from multiqc.core import log_and_rich, plugin_hooks, strict_helpers
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class ClConfig(BaseModel):
     report_comment: Optional[str] = None
     template: Optional[str] = None
     require_logs: Optional[bool] = None
-    output_dir: Optional[str] = None
+    output_dir: Optional[Union[str, Path]] = None
     use_filename_as_sample_name: Optional[bool] = None
     replace_names: Optional[str] = None
     sample_names: Optional[str] = None
@@ -51,21 +51,21 @@ class ClConfig(BaseModel):
     profile_runtime: Optional[bool] = None
     profile_memory: Optional[bool] = None
     no_version_check: Optional[bool] = None
-    ignore: List[str] = ()
-    ignore_samples: List[str] = ()
-    run_modules: List[str] = ()
-    exclude_modules: List[str] = ()
-    config_files: List[Union[str, Path]] = ()
-    cl_config: List[str] = ()
-    custom_css_files: List[str] = ()
-    module_order: List[Union[str, Dict]] = ()
+    ignore: List[str] = []
+    ignore_samples: List[str] = []
+    run_modules: List[str] = []
+    exclude_modules: List[str] = []
+    config_files: List[Union[str, Path]] = []
+    cl_config: List[str] = []
+    custom_css_files: List[str] = []
+    module_order: List[Union[str, Dict]] = []
     preserve_module_raw_data: Optional[bool] = None
-    extra_fn_clean_exts: List = ()
-    extra_fn_clean_trim: List = ()
-    kwargs: Optional[Dict] = None
+    extra_fn_clean_exts: List = []
+    extra_fn_clean_trim: List = []
+    unknown_options: Optional[Dict] = None
 
 
-def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
+def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=False):
     """
     Update config and re-initialize logger.
 
@@ -76,6 +76,8 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
     # Reload from defaults
     config.load_defaults()
 
+    if cfg is None and analysis_dir and isinstance(analysis_dir[0], ClConfig):
+        cfg = analysis_dir[0]
     cfg = cfg or ClConfig()
 
     # Reset logger
@@ -85,19 +87,24 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
         config.no_ansi = cfg.no_ansi
     if cfg.verbose is not None:
         config.verbose = cfg.verbose > 0
-    init_log.init_log()
+    log_and_rich.init_log(log_to_file=log_to_file)
 
     logger.debug(f"This is MultiQC v{config.version}")
     logger.debug("Running Python " + sys.version.replace("\n", " "))
 
     plugin_hooks.mqc_trigger("before_config")
 
-    config.load_user_files()
+    # Re-finding implicit configs
+    config.find_user_files()
 
-    # Set up session config files passed with -c or interactive.load_config().
-    # They are kept for the entire interactive session.
+    # Re-loading explicit user configs
+    path: Union[Path, str]
+    for path in config.explicit_user_config_files:
+        config.load_config_file(path)
+
+    # Set up session config files passed with -c or cfg=
     for path in cfg.config_files:
-        config.load_config_file(str(path))
+        config.load_config_file(str(path), is_explicit_config=False)
 
     # Command-line config YAML
     if len(cfg.cl_config) > 0:
@@ -144,13 +151,8 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
     if cfg.strict is not None:
         config.strict = cfg.strict
         config.lint = cfg.strict  # Deprecated since v1.17
-        if cfg.strict:
-            strict_helpers.run_tests()
     if cfg.development is not None:
         config.development = cfg.development
-        if cfg.development:
-            if "png" not in config.export_plot_formats:
-                config.export_plot_formats.append("png")
     if cfg.make_pdf:
         config.template = "simple"
     if config.template == "simple":
@@ -191,9 +193,12 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
     if cfg.preserve_module_raw_data is not None:
         config.preserve_module_raw_data = cfg.preserve_module_raw_data
 
+    if config.development and "png" not in config.export_plot_formats:
+        config.export_plot_formats.append("png")
+
     # Clean up analysis_dir if a string (interactive environment only)
     if analysis_dir:
-        config.analysis_dir = [Path(p) for p in analysis_dir]
+        config.analysis_dir = [p for p in analysis_dir]
     if cfg.file_list is not None:
         if len(config.analysis_dir) > 1:
             raise RunError("If --file-list is given, analysis_dir should have only one plain text file.")
@@ -209,10 +214,10 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
         config.sample_names_ignore.extend(cfg.ignore_samples)
 
     # Prep module configs
-    config.top_modules = [m if isinstance(m, dict) else {m: {}} for m in config.top_modules]
-    config.module_order = [m if isinstance(m, dict) else {m: {}} for m in config.module_order]
+    report.top_modules = [m if isinstance(m, dict) else {m: {}} for m in config.top_modules]
+    report.module_order = [m if isinstance(m, dict) else {m: {}} for m in config.module_order]
     # Lint the module config
-    mod_keys = [list(m.keys())[0] for m in config.module_order]
+    mod_keys = [list(m.keys())[0] for m in report.module_order]
     if config.strict:
         for m in config.avail_modules.keys():
             if m not in mod_keys:
@@ -220,8 +225,8 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None):
                 logger.error(errmsg)
                 report.lint_errors.append(errmsg)
 
-    if cfg.kwargs:
-        config.kwargs = cfg.kwargs  # Plugin command line options
+    if cfg.unknown_options:
+        config.kwargs = cfg.unknown_options  # plug in command line options
 
     plugin_hooks.mqc_trigger("config_loaded")
     plugin_hooks.mqc_trigger("execution_start")

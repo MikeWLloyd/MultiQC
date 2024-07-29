@@ -11,7 +11,7 @@ import re
 from typing import Tuple
 
 import numpy as np
-import spectra
+import spectra  # type: ignore
 
 from multiqc import config, report
 
@@ -404,6 +404,7 @@ class mqc_colour_scale(object):
                     try:
                         val_float = float(val_stripped)
                     except ValueError:
+                        # No color formatting for non-numeric values
                         return ""
                     val_float = max(val_float, self.minval)
                     val_float = min(val_float, self.maxval)

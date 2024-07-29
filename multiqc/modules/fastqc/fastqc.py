@@ -1,5 +1,3 @@
-"""MultiQC module to parse output from FastQC"""
-
 ############################################################
 ######  LOOKING FOR AN EXAMPLE OF HOW MULTIQC WORKS?  ######
 ############################################################
@@ -10,6 +8,8 @@
 import io
 import json
 import logging
+from typing import Dict, Set
+
 import math
 import os
 import re
@@ -22,25 +22,172 @@ from multiqc.plots import bargraph, heatmap, linegraph, table
 from multiqc import report
 from multiqc.plots.plotly.line import Series
 
-# Initialise the logger
 log = logging.getLogger(__name__)
 
 VERSION_REGEX = r"FastQC\t([\d\.]+)"
 
 
 class MultiqcModule(BaseMultiqcModule):
+    """
+    FastQC generates a HTML report which is what most people use when
+    they run the program. However, it also helpfully generates a file
+    called `fastqc_data.txt` which is relatively easy to parse.
+
+    A typical run will produce the following files:
+
+    ```
+    mysample_fastqc.html
+    mysample_fastqc/
+      Icons/
+      Images/
+      fastqc.fo
+      fastqc_data.txt
+      fastqc_report.html
+      summary.txt
+    ```
+
+    Sometimes the directory is zipped, with just `mysample_fastqc.zip`.
+
+    The FastQC MultiQC module looks for files called `fastqc_data.txt`
+    or ending in `_fastqc.zip`. If the zip files are found, they are
+    read in memory and `fastqc_data.txt` parsed.
+
+    :::note
+    The directory and zip file are often both present. To speed
+    up MultiQC execution, zip files will be skipped if the file name suggests
+    that they will share a sample name with data that has already been parsed.
+    :::
+
+    You can customise the patterns used for finding these files in your
+    MultiQC config (see [Module search patterns](#module-search-patterns)).
+    The below code shows the default file patterns:
+
+    ```yaml
+    sp:
+      fastqc/data:
+        fn: "fastqc_data.txt"
+      fastqc/zip:
+        fn: "*_fastqc.zip"
+    ```
+
+    :::note
+    Sample names are discovered by parsing the line beginning
+    `Filename` in `fastqc_data.txt`, _not_ based on the FastQC report names.
+    :::
+
+    #### Theoretical GC Content
+
+    It is possible to plot a dashed line showing the theoretical GC content for a
+    reference genome. MultiQC comes with genome and transcriptome guides for Human
+    and Mouse. You can use these in your reports by adding the following MultiQC
+    config keys (see [Configuring MultiQC](http://multiqc.info/docs/#configuring-multiqc)):
+
+    ```yaml
+    fastqc_config:
+      fastqc_theoretical_gc: "hg38_genome"
+    ```
+
+    Only one theoretical distribution can be plotted.
+    The following guides are available: _(txome = transcriptome)_
+
+    - `hg38_genome`
+    - `hg38_txome`
+    - `mm10_genome`
+    - `mm10_txome`
+
+    Alternatively, a custom theoretical guide can be used in reports. To do this,
+    create a file with `fastqc_theoretical_gc` in the filename and place it with your
+    analysis files. It should be tab delimited with the following format (column 1 = %GC,
+    column 2 = % of genome):
+
+    ```bash
+    # FastQC theoretical GC content curve: YOUR REFERENCE NAME
+    0	0.005311768
+    1	0.004108502
+    2	0.004060371
+    3	0.005066476
+    [...]
+    ```
+
+    You can generate these files using an R package called
+    [fastqcTheoreticalGC](https://github.com/mikelove/fastqcTheoreticalGC)
+    written by [Mike Love](https://github.com/mikelove).
+    Please see the [package readme](https://github.com/mikelove/fastqcTheoreticalGC)
+    for more details.
+
+    Result files from this package are searched for with the following search pattern
+    (can be customised as described above):
+
+    ```yaml
+    sp:
+      fastqc/theoretical_gc:
+        fn: "*fastqc_theoretical_gc*"
+    ```
+
+    If you want to always use a specific custom file for MultiQC reports without having to
+    add it to the analysis directory, add the full file path to the same MultiQC config
+    variable described above:
+
+    ```yaml
+    fastqc_config:
+      fastqc_theoretical_gc: "/path/to/your/custom_fastqc_theoretical_gc.txt"
+    ```
+
+    #### Overrepresented sequences
+
+    The overrepresented sequences table shows the most common sequences found,
+    measured by the number of samples they occur as overrepresented. By default, the
+    table shows top 20 sequences. This can be customised in the config:
+
+    ```yaml
+    fastqc_config:
+      top_overrepresented_sequences: 50
+    ```
+
+    You can also choose to rank the top sequences by the total number of reads
+    rather than by number of samples:
+
+    ```yaml
+    fastqc_config:
+      top_overrepresented_sequences_by: "total"
+    ```
+
+    #### Changing the order of sections
+
+    Remember that it is possible to customise the order in which the different module sections appear
+    in the report if you wish.
+    See [the docs](https://multiqc.info/docs/#order-of-module-and-module-subsection-output) for more information.
+
+    For example, to show the _Status Checks_ section at the top, use the following config:
+
+    ```yaml
+    report_section_order:
+      fastqc_status_checks:
+        order: -1000
+    ```
+
+    #### Showing FastQC status checks
+
+    FastQC uses thresholds to mark samples as "pass", "warn" or "fail" for various checks.
+    If you prefer the MultiQC module to ignore those thresholds, and use standard MultiQC
+    colors for samples instead, use the following config:
+
+    ```yaml
+    fastqc_config:
+      status_checks: false
+    ```
+    """
+
     def __init__(self):
-        # Initialise the parent object
         super(MultiqcModule, self).__init__(
             name="FastQC",
             anchor="fastqc",
             href="http://www.bioinformatics.babraham.ac.uk/projects/fastqc/",
-            info="is a quality control tool for high throughput sequence data,"
-            " written by Simon Andrews at the Babraham Institute in Cambridge.",
+            info="Quality control tool for high throughput sequencing data",
             # No publication / DOI // doi=
         )
 
-        self.fastqc_data = dict()
+        self.fastqc_data: Dict = dict()
 
         # Find and parse unzipped FastQC reports
         for f in self.find_log_files("fastqc/data"):
@@ -52,7 +199,7 @@ class MultiqcModule(BaseMultiqcModule):
             s_name = f["fn"]
             if s_name.endswith("_fastqc.zip"):
                 s_name = s_name[:-11]
-            # Skip if we already have this report - parsing zip files is slow..
+            # Skip if we already have this report - parsing zip files is slow
             if s_name in self.fastqc_data.keys():
                 log.debug(f"Skipping '{f['fn']}' as already parsed '{s_name}'")
                 continue
@@ -67,13 +214,13 @@ class MultiqcModule(BaseMultiqcModule):
             try:
                 path = os.path.join(d_name, "fastqc_data.txt")
                 with fqc_zip.open(path) as fh:
-                    r_data = fh.read()
+                    r_data_binary = fh.read()
                     try:
-                        r_data = r_data.decode("utf8")
+                        r_data = r_data_binary.decode("utf8")
                     except UnicodeDecodeError as e:
                         log.debug(f"Could not parse {path} as Unicode: {e}, attempting the latin-1 encoding")
                         try:
-                            r_data = r_data.decode("latin-1")
+                            r_data = r_data_binary.decode("latin-1")
                         except Exception as e:
                             log.warning(f"Error reading FastQC data file {path}: {e}. Skipping sample {s_name}.")
                             continue
@@ -114,7 +261,7 @@ class MultiqcModule(BaseMultiqcModule):
         status_checks = getattr(config, "fastqc_config", {}).get("status_checks", True)
 
         # Add the statuses to the intro for multiqc_fastqc.js JavaScript to pick up
-        statuses = dict()
+        statuses: Dict = dict()
         if status_checks:
             for s_name in self.fastqc_data:
                 for section, status in self.fastqc_data[s_name]["statuses"].items():
@@ -249,7 +396,7 @@ class MultiqcModule(BaseMultiqcModule):
         table at the top of the report"""
 
         # Prep the data
-        data = dict()
+        data: Dict = dict()
         for s_name in self.fastqc_data:
             data[s_name] = dict()
             bs = self.fastqc_data[s_name]["basic_statistics"]
@@ -356,7 +503,7 @@ class MultiqcModule(BaseMultiqcModule):
             "cpswitch_counts_label": "Number of reads",
             "hide_empty": False,
         }
-        pdata = dict()
+        pdata: Dict = dict()
         has_dups = False
         has_total = False
         for s_name in self.fastqc_data:
@@ -617,8 +764,8 @@ class MultiqcModule(BaseMultiqcModule):
     def gc_content_plot(self, status_checks=True):
         """Create the HTML for the FastQC GC content plot"""
 
-        data = dict()
-        data_norm = dict()
+        data: Dict = dict()
+        data_norm: Dict = dict()
         for s_name in self.fastqc_data:
             try:
                 data[s_name] = {
@@ -801,8 +948,8 @@ class MultiqcModule(BaseMultiqcModule):
         """Create the HTML for the Sequence Length Distribution plot"""
 
         data = dict()
-        avg_seq_lengths = set()
-        multiple_lenths = False
+        avg_seq_lengths: Set[str] = set()
+        multiple_lengths: bool = False
         for s_name in self.fastqc_data:
             try:
                 data[s_name] = {
@@ -811,14 +958,14 @@ class MultiqcModule(BaseMultiqcModule):
                 }
                 avg_seq_lengths.update(data[s_name].keys())
                 if len(set(data[s_name].keys())) > 1:
-                    multiple_lenths = True
+                    multiple_lengths = True
             except KeyError:
                 pass
         if len(data) == 0:
             log.debug("sequence_length_distribution not found in FastQC reports")
             return None
 
-        if not multiple_lenths:
+        if not multiple_lengths:
             lengths = "bp , ".join([str(line) for line in list(avg_seq_lengths)])
             desc = f"All samples have sequences of a single length ({lengths}bp)."
             if len(avg_seq_lengths) > 1:
@@ -855,7 +1002,7 @@ class MultiqcModule(BaseMultiqcModule):
     def seq_dup_levels_plot(self, status_checks):
         """Create the HTML for the Sequence Duplication Levels plot"""
 
-        data = dict()
+        data: Dict = dict()
         max_dupval = 0
         for s_name in self.fastqc_data:
             try:
@@ -928,10 +1075,10 @@ class MultiqcModule(BaseMultiqcModule):
     def overrepresented_sequences(self):
         """Sum the percentages of overrepresented sequences and display them in a bar plot"""
 
-        data = dict()
+        data: Dict = dict()
         # Count the number of samples where a sequence is overrepresented
-        overrep_by_sample = Counter()
-        overrep_total_cnt = Counter()
+        overrep_by_sample: Counter = Counter()
+        overrep_total_cnt: Counter = Counter()
         for s_name in self.fastqc_data:
             data[s_name] = dict()
             try:
@@ -1089,7 +1236,7 @@ class MultiqcModule(BaseMultiqcModule):
     def adapter_content_plot(self, status_checks=True):
         """Create the HTML for the FastQC adapter plot"""
 
-        data = dict()
+        data: Dict = dict()
         for s_name in self.fastqc_data:
             try:
                 for adapters in self.fastqc_data[s_name]["adapter_content"]:

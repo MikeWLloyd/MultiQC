@@ -4,6 +4,7 @@ modules. Contains helper functions to generate markup for report.
 """
 
 import base64
+import dataclasses
 import fnmatch
 import gzip
 import inspect
@@ -14,46 +15,60 @@ import mimetypes
 import os
 import re
 import sys
-import tempfile
 import time
 from collections import defaultdict
 from pathlib import Path, PosixPath
-from typing import Dict, Union, List, Optional, TextIO, Iterator, Tuple, Any
+from typing import Dict, Union, List, Optional, TextIO, Iterator, Tuple, Any, Mapping, Sequence, Set
 
 import yaml
+from pydantic import BaseModel, Field
 
 from multiqc import config
 
 # This does not cause circular imports because BaseMultiqcModule is used only in
 # quoted type hints, and quoted type hints are lazily evaluated:
 from multiqc.base_module import BaseMultiqcModule
-from multiqc.core.exceptions import RunError
+from multiqc.core import log_and_rich, tmp_dir
+from multiqc.core.exceptions import NoAnalysisFound
+from multiqc.core.tmp_dir import data_tmp_dir
+from multiqc.core.log_and_rich import iterate_using_progress_bar
 from multiqc.plots.plotly.plot import Plot
 from multiqc.utils.util_functions import (
     replace_defaultdicts,
     dump_json,
-    iterate_using_progress_bar,
+    rmtree_with_retries,
 )
 
 logger = logging.getLogger(__name__)
 
 initialized = False
 
-tmp_dir: Optional[str] = None
+
+@dataclasses.dataclass
+class Runtimes:
+    total: float = 0.0
+    total_sp: float = 0.0
+    total_mods: float = 0.0
+    total_compression: float = 0.0
+    sp: Dict[str, float] = dataclasses.field(default_factory=lambda: defaultdict())
+    mods: Dict[str, float] = dataclasses.field(default_factory=lambda: defaultdict())
+
 
 # Uninitialised global variables for static typing
 multiqc_command: str
-analysis_files: List[str]  # Input files to search
-modules: List["BaseMultiqcModule"]  # List of BaseMultiqcModule objects
+top_modules: List[Dict[str, Dict[str, str]]]
+module_order: List[Dict[str, Dict[str, Union[str, List[str]]]]]
+analysis_files: List[str]  # input files to search
+modules: List["BaseMultiqcModule"]  # list of BaseMultiqcModule objects
 general_stats_html: str
 lint_errors: List[str]
 num_flat_plots: int
-saved_raw_data: Dict[str, Dict[str, Any]]  # Indexed by unique key, then sample name
+saved_raw_data: Dict[str, Dict[str, Any]]  # indexed by unique key, then sample name
 last_found_file: Optional[str]
-runtimes: Dict[str, Union[float, Dict]]
+runtimes: Runtimes
 peak_memory_bytes_per_module: Dict[str, int]
 diff_memory_bytes_per_module: Dict[str, int]
-file_search_stats: Dict[str, int]
+file_search_stats: Dict[str, Set[Path]]
 files: Dict
 
 # Fields below is kept between interactive runs
@@ -63,16 +78,17 @@ plot_data: Dict[str, Dict] = dict()  # plot dumps to embed in html
 plot_by_id: Dict[str, Plot] = dict()  # plot objects for interactive use
 general_stats_data: List[Dict]
 general_stats_headers: List[Dict]
-# Map of Software tools to a set of unique version strings
-software_versions: Dict[str, Dict[str, List]]
+software_versions: Dict[str, Dict[str, List]]  # map software tools to unique versions
+plot_compressed_json: str
 
 
-def __initialise():
+def reset():
     # Set up global variables shared across modules. Inside a function so that the global
     # vars are reset if MultiQC is run more than once within a single session / environment.
     global initialized
-    global tmp_dir
     global multiqc_command
+    global top_modules
+    global module_order
     global analysis_files
     global modules
     global general_stats_html
@@ -90,13 +106,13 @@ def __initialise():
     global general_stats_data
     global general_stats_headers
     global software_versions
+    global plot_compressed_json
 
     # Create new temporary directory for module data exports
     initialized = True
-    if tmp_dir is None:
-        tmp_dir = tempfile.mkdtemp()
-    logger.debug(f"Using temporary directory: {tmp_dir}")
     multiqc_command = ""
+    top_modules = []
+    module_order = []
     analysis_files = []
     modules = []
     general_stats_html = ""
@@ -104,14 +120,7 @@ def __initialise():
     num_flat_plots = 0
     saved_raw_data = dict()
     last_found_file = None
-    runtimes = {
-        "total": 0.0,
-        "total_sp": 0.0,
-        "total_mods": 0.0,
-        "total_compression": 0.0,
-        "sp": defaultdict(),
-        "mods": defaultdict(),
-    }
+    runtimes = Runtimes()
     peak_memory_bytes_per_module = dict()
     diff_memory_bytes_per_module = dict()
     data_sources = defaultdict(lambda: defaultdict(lambda: defaultdict()))
@@ -121,8 +130,10 @@ def __initialise():
     general_stats_data = []
     general_stats_headers = []
     software_versions = defaultdict(lambda: defaultdict(list))
+    plot_compressed_json = ""
 
     reset_file_search()
+    tmp_dir.new_tmp_dir()
 
 
 def reset_file_search():
@@ -136,25 +147,18 @@ def reset_file_search():
     analysis_files = []
     files = dict()  # Discovered files for each search key
     file_search_stats = {
-        "skipped_symlinks": 0,
-        "skipped_not_a_file": 0,
-        "skipped_ignore_pattern": 0,
-        "skipped_filesize_limit": 0,
-        "skipped_module_specific_max_filesize": 0,
-        "skipped_no_match": 0,
-        "skipped_directory_fn_ignore_dirs": 0,
-        "skipped_file_contents_search_errors": 0,
+        "skipped_symlinks": set(),
+        "skipped_not_a_file": set(),
+        "skipped_ignore_pattern": set(),
+        "skipped_filesize_limit": set(),
+        "skipped_module_specific_max_filesize": set(),
+        "skipped_no_match": set(),
+        "skipped_directory_fn_ignore_dirs": set(),
+        "skipped_file_contents_search_errors": set(),
     }
 
 
-def reset():
-    """
-    Reset interactive session.
-    """
-    __initialise()
-
-
-__initialise()
+reset()
 
 
 def file_line_block_iterator(fp: TextIO, block_size: int = 4096) -> Iterator[Tuple[int, str]]:
@@ -210,10 +214,10 @@ class SearchFile:
             # process block again
     """
 
-    def __init__(self, filename: str, root: str):
-        self.filename = filename
-        self.root = root
-        self.path: str = os.path.join(root, filename)
+    def __init__(self, path: Path):
+        self.path: Path = path
+        self.filename = path.name
+        self.root = path.parent
         self._filehandle: Optional[TextIO] = None
         self._iterator: Optional[Iterator[Tuple[int, str]]] = None
         self._blocks: List[Tuple[int, str]] = []  # cache of read blocks with line count found in each block
@@ -255,7 +259,9 @@ class SearchFile:
             except Exception as e:
                 if config.report_readerrors:
                     logger.debug(f"Couldn't read file when looking for output: {self.path}, {e}")
+                raise
             self._iterator = file_line_block_iterator(self._filehandle)
+        assert self._iterator is not None
         try:
             for count_and_block_tuple in self._iterator:
                 self._blocks.append(count_and_block_tuple)
@@ -276,7 +282,7 @@ class SearchFile:
             # When no lines are parsed, self.content_lines should be empty
             if not self._blocks and config.report_readerrors:
                 logger.debug(f"No utf-8 lines were read from the file, skipping {self.path}")
-            return  # No errors.
+            return  # No errors
         self._filehandle.close()
         self._filehandle = io.open(self.path, "rt", encoding="utf-8", errors="ignore")
         self._iterator = file_line_block_iterator(self._filehandle)
@@ -318,7 +324,7 @@ class SearchFile:
         self.close()
 
     def to_dict(self):
-        return {"fn": self.filename, "root": self.root}
+        return {"fn": self.filename, "root": str(self.root)}
 
 
 def is_searching_in_source_dir(path: Path) -> bool:
@@ -346,14 +352,57 @@ def is_searching_in_source_dir(path: Path) -> bool:
         return False
 
 
-def prep_ordered_search_files_list(sp_keys) -> Tuple[List, List]:
+class SearchPattern(BaseModel):
+    fn: Optional[str] = None
+    fn_re: Optional[re.Pattern] = None
+    contents: Set[str] = Field(default_factory=set)
+    contents_re: Set[re.Pattern] = Field(default_factory=set)
+    num_lines: Optional[int] = None
+    shared: bool = False
+    skip: bool = False
+    max_filesize: Optional[int] = None
+    exclude_fn: Set[str] = Field(default_factory=set)
+    exclude_fn_re: Set[re.Pattern] = Field(default_factory=set)
+    exclude_contents: Set[str] = Field(default_factory=set)
+    exclude_contents_re: Set[re.Pattern] = Field(default_factory=set)
+
+    @staticmethod
+    def parse(d: Dict, key: str) -> Optional["SearchPattern"]:
+        one_of_required = ["fn", "fn_re", "contents", "contents_re"]
+        if not any(d.get(k) for k in one_of_required):
+            msg = f"At least one of the keys must be specified in search pattern: {one_of_required}, got: '{key}': {d}"
+            logger.error(msg)
+            if config.strict:
+                lint_errors.append(msg)
+            return None
+
+        # Convert the values that can be lists/sets or str into sets
+        for k in ["contents", "contents_re", "exclude_fn", "exclude_fn_re" "exclude_contents", "exclude_contents_re"]:
+            val = d.get(k, [])
+            if val:
+                strs = [val] if isinstance(val, str) else val
+                d[k] = set(strs)
+
+        # Convert patterns into regex objects
+        for k in ["contents_re", "exclude_fn_re", "exclude_contents_re"]:
+            strs = d.get(k, [])
+            if strs:
+                d[k] = {re.compile(s) for s in set(strs)}
+
+        if "fn_re" in d:
+            d["fn_re"] = re.compile(d["fn_re"])
+
+        return SearchPattern(**d)
+
+
+def prep_ordered_search_files_list(sp_keys: List[str]) -> Tuple[List[Dict[str, List[SearchPattern]]], List[Path]]:
     """
     Prepare the searchfiles list in desired order, from easy to difficult;
     apply ignore_dirs and ignore_paths filters.
     """
 
-    spatterns = [{}, {}, {}, {}, {}, {}, {}]
-    searchfiles = []
+    spatterns: List[Dict[str, List[SearchPattern]]] = [{}, {}, {}, {}, {}, {}, {}]
+    searchfiles: List[Path] = []
 
     def _maybe_add_path_to_searchfiles(item: Path):
         """
@@ -362,16 +411,16 @@ def prep_ordered_search_files_list(sp_keys) -> Tuple[List, List]:
         Guaranteed to work correctly with symlinks even on non-POSIX compliant filesystems.
         """
         if item.is_symlink() and config.ignore_symlinks:
-            file_search_stats["skipped_symlinks"] += 1
+            file_search_stats["skipped_symlinks"].add(item)
             return
         elif item.is_file():
-            searchfiles.append([item.name, os.fspath(item.parent)])
+            searchfiles.append(item)
         elif item.is_dir():
             # Skip directory if it matches ignore patterns
             d_matches = any(d for d in config.fn_ignore_dirs if item.match(d.rstrip(os.sep)))
             p_matches = any(p for p in config.fn_ignore_paths if item.match(p.rstrip(os.sep)))
             if d_matches or p_matches:
-                file_search_stats["skipped_directory_fn_ignore_dirs"] += 1
+                file_search_stats["skipped_directory_fn_ignore_dirs"].add(item)
                 return
 
             # Check not running in install directory
@@ -384,69 +433,57 @@ def prep_ordered_search_files_list(sp_keys) -> Tuple[List, List]:
     ignored_patterns = []
     skipped_patterns = []
 
-    for key, sps in config.sp.items():
+    for key, sp_dicts in config.sp.items():
         mod_key = key.split("/", 1)[0]
         if mod_key.lower() not in [m.lower() for m in sp_keys]:
             ignored_patterns.append(key)
             continue
-        files[key] = list()
-        if not isinstance(sps, list):
-            sps = [sps]
+        if not isinstance(sp_dicts, list):
+            sp_dicts = [sp_dicts]
 
         # Warn if we have any unrecognised search pattern keys
-        expected_sp_keys = [
-            "fn",
-            "fn_re",
-            "contents",
-            "contents_re",
-            "num_lines",
-            "shared",
-            "skip",
-            "max_filesize",
-            "exclude_fn",
-            "exclude_fn_re",
-            "exclude_contents",
-            "exclude_contents_re",
-        ]
-        unrecognised_keys = [y for x in sps for y in x.keys() if y not in expected_sp_keys]
+        expected_sp_keys = [k for k in SearchPattern.model_fields]
+        unrecognised_keys = [y for x in sp_dicts for y in x.keys() if y not in expected_sp_keys]
         if len(unrecognised_keys) > 0:
             logger.warning(f"Unrecognised search pattern keys for '{key}': {', '.join(unrecognised_keys)}")
 
+        sps: List[SearchPattern] = [v for v in [SearchPattern.parse(d, key) for d in sp_dicts] if v is not None]
+
         # Check if we are skipping this search key
-        if any([x.get("skip") for x in sps]):
+        if any([x.skip for x in sps]):
             skipped_patterns.append(key)
 
         # Split search patterns according to speed of execution.
-        if any([x for x in sps if "contents_re" in x]):
-            if any([x for x in sps if "num_lines" in x]):
+        if any([x for x in sps if x.contents_re]):
+            if any([x for x in sps if x.num_lines is not None]):
                 spatterns[4][key] = sps
-            elif any([x for x in sps if "max_filesize" in x]):
+            elif any([x for x in sps if x.max_filesize is not None]):
                 spatterns[5][key] = sps
             else:
                 spatterns[6][key] = sps
-        elif any([x for x in sps if "contents" in x]):
-            if any([x for x in sps if "num_lines" in x]):
+        elif any([x for x in sps if x.contents]):
+            if any([x for x in sps if x.num_lines is not None]):
                 spatterns[1][key] = sps
-            elif any([x for x in sps if "max_filesize" in x]):
+            elif any([x for x in sps if x.max_filesize is not None]):
                 spatterns[2][key] = sps
             else:
                 spatterns[3][key] = sps
         else:
             spatterns[0][key] = sps
 
-    def _sort_by_key(sps: Dict[str, List[Dict[str, str]]], key: str) -> Dict:
+    def _sort_by_key(_sps: Dict[str, List[SearchPattern]], _key: str) -> Dict[str, List[SearchPattern]]:
         """Sort search patterns dict by key like num_lines or max_filesize."""
 
         def _sort_key(kv) -> int:
-            _, sps = kv
+            _, __sps = kv
             # Since modules can have multiple search patterns, we sort by the slowest one:
-            return max([sp.get(key, 0) for sp in sps])
+            return max([getattr(sp, _key) or 0 for sp in __sps])
 
-        return dict(sorted(sps.items(), key=_sort_key))
+        return dict(sorted(_sps.items(), key=_sort_key))
 
     # Sort patterns for faster access. File searches with fewer lines or
     # smaller file sizes go first.
-    sorted_spatterns = [{}, {}, {}, {}, {}, {}, {}]
+    sorted_spatterns: List[Dict[str, List[SearchPattern]]] = [{}, {}, {}, {}, {}, {}, {}]
     sorted_spatterns[0] = spatterns[0]  # Only filename matching
     sorted_spatterns[1] = _sort_by_key(spatterns[1], "num_lines")
     sorted_spatterns[2] = _sort_by_key(spatterns[2], "max_filesize")
@@ -457,7 +494,10 @@ def prep_ordered_search_files_list(sp_keys) -> Tuple[List, List]:
     spatterns = sorted_spatterns
 
     if len(ignored_patterns) > 0:
-        logger.debug(f"Ignored {len(ignored_patterns)} search patterns as didn't match running modules.")
+        logger.debug(
+            f"Ignored {len(ignored_patterns)} search patterns that didn't match running modules"
+            + (f": {ignored_patterns}" if len(ignored_patterns) < 10 else "")
+        )
 
     if len(skipped_patterns) > 0:
         logger.info(f"Skipping {len(skipped_patterns)} file search patterns")
@@ -470,30 +510,30 @@ def prep_ordered_search_files_list(sp_keys) -> Tuple[List, List]:
     return spatterns, searchfiles
 
 
-def run_search_files(spatterns, searchfiles):
-    runtimes["sp"] = defaultdict()
+def run_search_files(spatterns: List[Dict[str, List[SearchPattern]]], searchfiles: List[Path]):
+    runtimes.sp = defaultdict()
     total_sp_starttime = time.time()
 
-    def add_file(fn, root):
+    def add_file(path: Path):
         """
         Function applied to each file found when walking the analysis
         directories. Runs through all search patterns and returns True
         if a match is found.
         """
-        f = SearchFile(fn, root)
+        search_f = SearchFile(path)
 
         # Check that this is a file and not a pipe or anything weird
-        if not os.path.isfile(os.path.join(root, fn)):
-            file_search_stats["skipped_not_a_file"] += 1
+        if not path.is_file():
+            file_search_stats["skipped_not_a_file"].add(path)
             return False
 
-        if f.filesize is not None and f.filesize > config.log_filesize_limit:
-            file_search_stats["skipped_filesize_limit"] += 1
+        if search_f.filesize is not None and search_f.filesize > config.log_filesize_limit:
+            file_search_stats["skipped_filesize_limit"].add(path)
             return False
 
         # Use mimetypes to exclude binary files where possible
-        if not re.match(r".+_mqc\.(png|jpg|jpeg)", f.filename) and config.ignore_images:
-            (ftype, encoding) = mimetypes.guess_type(f.path)
+        if not re.match(r".+_mqc\.(png|jpg|jpeg)", search_f.filename) and config.ignore_images:
+            (ftype, encoding) = mimetypes.guess_type(str(path))
             if encoding is not None and encoding != "gzip":
                 return False
             if ftype is not None and ftype.startswith("image"):
@@ -501,48 +541,49 @@ def run_search_files(spatterns, searchfiles):
 
         # Test file for each search pattern
         file_matched = False
-        with f:  # Ensure any open filehandles are closed.
+        with search_f:  # Ensure any open filehandles are closed.
             for patterns in spatterns:
                 for key, sps in patterns.items():
                     start = time.time()
                     for sp in sps:
-                        if search_file(sp, f, key):
+                        if search_file(sp, search_f, key):
                             # Check that we shouldn't exclude this file
-                            if not exclude_file(sp, f):
+                            if not exclude_file(sp, search_f):
                                 # Looks good! Remember this file
-                                files[key].append(f.to_dict())
-                                file_search_stats[key] = file_search_stats.get(key, 0) + 1
+                                if key not in files:
+                                    files[key] = []
+                                files[key].append(search_f.to_dict())
+                                file_search_stats[key] = file_search_stats.get(key, set()) | {path}
                                 file_matched = True
                                 # logger.debug(f"File {f.path} matched {key}")
                             # Don't keep searching this file for other modules
-                            if not sp.get("shared", False) and key not in config.filesearch_file_shared:
-                                runtimes["sp"][key] = runtimes["sp"].get(key, 0) + (time.time() - start)
+                            if not sp.shared and key not in config.filesearch_file_shared:
+                                runtimes.sp[key] = runtimes.sp.get(key, 0) + (time.time() - start)
                                 return True
                             # Don't look at other patterns for this module
                             break
-                    runtimes["sp"][key] = runtimes["sp"].get(key, 0) + (time.time() - start)
+                    runtimes.sp[key] = runtimes.sp.get(key, 0) + (time.time() - start)
         return file_matched
 
-    def update_fn(i, sf):
-        if not add_file(sf[0], sf[1]):
-            file_search_stats["skipped_no_match"] += 1
+    def update_fn(_, sf: Path):
+        if not add_file(sf):
+            file_search_stats["skipped_no_match"].add(sf)
 
     iterate_using_progress_bar(
         items=searchfiles,
         update_fn=update_fn,
-        item_to_str_fn=lambda sf: os.path.join(sf[1], sf[0]),
         desc="searching",
     )
 
-    runtimes["total_sp"] = time.time() - total_sp_starttime
+    runtimes.total_sp = time.time() - total_sp_starttime
     if config.profile_runtime:
-        logger.info(f"Profile-runtime: Searching files took {runtimes['total_sp']:.2f}s")
+        logger.info(f"Profile-runtime: Searching files took {runtimes.total_sp:.2f}s")
 
     # Debug log summary about what we skipped
     summaries = []
-    for key in sorted(file_search_stats, key=file_search_stats.get, reverse=True):
-        if "skipped_" in key and file_search_stats[key] > 0:
-            summaries.append(f"{key}: {file_search_stats[key]}")
+    for key in sorted(file_search_stats, key=lambda x: file_search_stats[x], reverse=True):
+        if "skipped_" in key and file_search_stats[key]:
+            summaries.append(f"{key}: {len(file_search_stats[key])}")
     if summaries:
         logger.debug(f"Summary of files that were skipped by the search: |{'|, |'.join(summaries)}|")
 
@@ -553,80 +594,75 @@ def search_files(sp_keys):
     list of files to search. Then fire search functions for each file.
     """
     if not analysis_files:
-        raise RunError("Error: no analysis files found to search")
+        raise NoAnalysisFound("No analysis files found to search")
 
     spatterns, searchfiles = prep_ordered_search_files_list(sp_keys)
 
     run_search_files(spatterns, searchfiles)
 
 
-def search_file(pattern, f: SearchFile, module_key):
+def search_file(pattern: SearchPattern, f: SearchFile, module_key):
     """
     Function to search a single file for a single search pattern.
     """
 
     global file_search_stats
-    fn_matched = False
-    contents_matched = False
 
     # Search pattern specific filesize limit
-    max_filesize = pattern.get("max_filesize")
-    if max_filesize is not None and f.filesize:
-        if f.filesize > max_filesize:
-            file_search_stats["skipped_module_specific_max_filesize"] += 1
+    if pattern.max_filesize is not None and f.filesize:
+        if f.filesize > pattern.max_filesize:
+            file_search_stats["skipped_module_specific_max_filesize"].add(f.path)
             return False
 
     # Search by file name (glob)
-    filename_pattern = pattern.get("fn")
-    if filename_pattern is not None:
-        if fnmatch.fnmatch(f.filename, filename_pattern):
-            fn_matched = True
-        else:
+    if pattern.fn is not None:
+        if not fnmatch.fnmatch(f.filename, pattern.fn):
             return False
 
     # Search by file name (regex)
-    filename_regex_pattern = pattern.get("fn_re")
-    if filename_regex_pattern is not None:
-        if re.match(filename_regex_pattern, f.filename):
-            fn_matched = True
-        else:
+    if pattern.fn_re is not None:
+        if not re.match(pattern.fn_re, f.filename):
             return False
 
-    contents_pattern = pattern.get("contents")
-    contents_regex_pattern = pattern.get("contents_re")
-    if fn_matched and contents_pattern is None and contents_regex_pattern is None:
+    # If we only had fn and fn_re, can assume matching is done:
+    if not pattern.contents and not pattern.contents_re:
         return True
 
     # Before parsing file content, check that we don't want to ignore this file to avoid parsing large files
-    ignore_matches = [ignore_pat for ignore_pat in config.fn_ignore_files if fnmatch.fnmatch(f.filename, ignore_pat)]
-    if len(ignore_matches) > 0:
-        file_search_stats["skipped_ignore_pattern"] += 1
-        return False
+    for ignore_pat in config.fn_ignore_files:
+        if fnmatch.fnmatch(f.filename, ignore_pat):
+            file_search_stats["skipped_ignore_pattern"].add(f.path)
+            return False
 
     # Search by file contents
-    if contents_pattern is not None or contents_regex_pattern is not None:
-        if pattern.get("contents_re") is not None:
-            repattern = re.compile(pattern["contents_re"])
-        else:
-            repattern = None
-        num_lines = pattern.get("num_lines", config.filesearch_lines_limit)
-        expected_contents = pattern.get("contents")
-        try:
-            for line_count, line in f.line_iterator():
-                if expected_contents and expected_contents in line:
-                    contents_matched = True
-                    break
-                if repattern and repattern.match(line):
-                    contents_matched = True
-                    break
-                if line_count >= num_lines:
-                    break
-        except Exception:
-            file_search_stats["skipped_file_contents_search_errors"] += 1
-            return False
-        if filename_pattern is None and filename_regex_pattern is None and contents_matched:
-            return True
-        return fn_matched and contents_matched
+    num_lines = pattern.num_lines or config.filesearch_lines_limit
+
+    match_strs: Set[str] = set()
+    match_re_patterns: Set[re.Pattern] = set()
+    try:
+        for line_count, line in f.line_iterator():
+            for s in pattern.contents:
+                if s in line:
+                    match_strs.add(s)
+                    if len(match_strs) == len(pattern.contents):  # all strings matched
+                        break
+            for p in pattern.contents_re:
+                if p.match(line):
+                    match_re_patterns.add(p)
+                    if len(match_re_patterns) == len(pattern.contents_re):  # all strings matched
+                        break
+            if line_count >= num_lines:
+                break
+    except Exception:
+        file_search_stats["skipped_file_contents_search_errors"].add(f.path)
+        return False
+
+    return (
+        pattern.contents
+        and len(match_strs) == len(pattern.contents)
+        or pattern.contents_re
+        and len(match_re_patterns) == len(pattern.contents_re)
+    )
 
 
 def exclude_file(sp, f: SearchFile):
@@ -669,9 +705,9 @@ def exclude_file(sp, f: SearchFile):
     return False
 
 
-def data_sources_tofile():
+def data_sources_tofile(data_dir: Path):
     fn = f"multiqc_sources.{config.data_format_extensions[config.data_format]}"
-    with io.open(os.path.join(config.data_dir, fn), "w", encoding="utf-8") as f:
+    with io.open(data_dir / fn, "w", encoding="utf-8") as f:
         if config.data_format == "json":
             json.dump(data_sources, f, indent=4, ensure_ascii=False)
         elif config.data_format == "yaml":
@@ -688,16 +724,16 @@ def data_sources_tofile():
             print(body.encode("utf-8", "ignore").decode("utf-8"), file=f)
 
 
-def dois_tofile(modules: List["BaseMultiqcModule"]):
+def dois_tofile(data_dir: Path, module_list: List["BaseMultiqcModule"]):
     """Find all DOIs listed in report sections and write to a file"""
     # Collect DOIs
     dois = {"MultiQC": ["10.1093/bioinformatics/btw354"]}
-    for mod in modules:
+    for mod in module_list:
         if mod.doi is not None and mod.doi != "" and mod.doi != []:
             dois[mod.id] = mod.doi
     # Write to a file
     fn = f"multiqc_citations.{config.data_format_extensions[config.data_format]}"
-    with open(os.path.join(config.data_dir, fn), "w") as f:
+    with open(data_dir / fn, "w") as f:
         if config.data_format == "json":
             json.dump(dois, f, indent=4, ensure_ascii=False)
         elif config.data_format == "yaml":
@@ -706,9 +742,9 @@ def dois_tofile(modules: List["BaseMultiqcModule"]):
             yaml.dump(replace_defaultdicts(dois), f, default_flow_style=False)
         else:
             body = ""
-            for mod, dois in dois.items():
-                for doi in dois:
-                    body += f"{doi}{' ' * (50 - len(doi))} # {mod}\n"
+            for mod_name, dois_strings in dois.items():
+                for doi_string in dois_strings:
+                    body += f"{doi_string}{' ' * (50 - len(doi_string))} # {mod_name}\n"
             print(body.encode("utf-8", "ignore").decode("utf-8"), file=f)
 
 
@@ -750,7 +786,8 @@ def save_htmlid(html_id, skiplint=False):
             if "multiqc/modules/" in n[1] and "base_module.py" not in n[1]:
                 callpath = n[1].split("multiqc/modules/", 1)[-1]
                 modname = f">{callpath}< "
-                codeline = n[4][0].strip()
+                if isinstance(n[4], str):
+                    codeline = n[4][0].strip()
                 break
         if html_id != html_id_clean:
             errmsg = f"LINT: {modname}HTML ID was not clean ('{html_id}' -> '{html_id_clean}') ## {codeline}"
@@ -790,35 +827,14 @@ def compress_json(data):
     return base64_bytes.decode("ascii")
 
 
-def data_tmp_dir() -> str:
-    """
-    Temporary directory to collect data files from running modules before copying to the final
-    destination in multiqc.core.write_results
-    """
-    path = os.path.join(tmp_dir, "multiqc_data")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-
-def plots_tmp_dir() -> str:
-    """
-    Temporary directory to collect plot exports from running modules before copying to the final
-    destination in multiqc.core.write_results
-    """
-    path = os.path.join(tmp_dir, "multiqc_plots")
-    os.makedirs(path, exist_ok=True)
-    return path
-
-
 def write_data_file(
-    data: Union[Dict[str, Union[Dict, List]], List[Dict]],
+    data: Union[Mapping[str, Union[Mapping, Sequence]], Sequence[Mapping], Sequence[Sequence]],
     fn: str,
     sort_cols=False,
     data_format=None,
 ):
     """
     Write a data file to the report directory. Will do nothing
-    if config.data_dir is not set (i.e. when config.make_data_dir == False or config.filename == "stdout")
     :param: data - either: a 2D dict, first key sample name (row header),
         second key field (column header); a list of dicts; or a list of lists
     :param: fn - Desired filename. Directory will be prepended automatically.
@@ -827,7 +843,7 @@ def write_data_file(
     :return: None
     """
 
-    if config.data_dir is None:
+    if not config.make_data_dir or config.filename == "stdout":
         return
 
     # Get data format from config
@@ -887,8 +903,8 @@ def write_data_file(
 
     # Add relevant file extension to filename, save file.
     fn = f"{fn}.{config.data_format_extensions[data_format]}"
-    fpath = os.path.join(data_tmp_dir(), fn)
-    assert data_tmp_dir() and os.path.exists(data_tmp_dir())
+    fpath = data_tmp_dir() / fn
+    assert data_tmp_dir() and data_tmp_dir().exists()
     with open(fpath, "w", encoding="utf-8", errors="ignore") as f:
         if data_format == "json":
             dump_json(data, f, indent=4, ensure_ascii=False)
@@ -953,9 +969,30 @@ def multiqc_dump_json():
                 logger.warning(f"Couldn't export data key '{s}.{k}': {e}")
         # Get the absolute paths of analysis directories
         exported_data["config_analysis_dir_abs"] = list()
-        for d in exported_data.get("config_analysis_dir", []):
+        for config_analysis_dir in exported_data.get("config_analysis_dir", []):
             try:
-                exported_data["config_analysis_dir_abs"].append(str(os.path.abspath(d)))
+                exported_data["config_analysis_dir_abs"].append(str(os.path.abspath(config_analysis_dir)))
             except Exception:
                 pass
     return exported_data
+
+
+def get_all_sections() -> List:
+    return [s for mod in modules for s in mod.sections if not mod.hidden]
+
+
+def remove_tmp_dir():
+    """
+    Completely remove tmp dir
+    """
+    log_and_rich.remove_file_handler()
+    rmtree_with_retries(tmp_dir.get_tmp_dir())
+    tmp_dir.new_tmp_dir()
+
+
+def reset_tmp_dir():
+    """
+    Re-create tmp dir
+    """
+    remove_tmp_dir()
+    tmp_dir.get_tmp_dir()
