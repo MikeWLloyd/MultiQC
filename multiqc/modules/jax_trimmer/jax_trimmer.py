@@ -6,7 +6,7 @@ import re
 from collections import OrderedDict
 
 from multiqc import config
-from multiqc.modules.base_module import BaseMultiqcModule
+from multiqc.base_module import BaseMultiqcModule
 from multiqc.plots import bargraph
 
 # Initialise the logger
@@ -53,7 +53,7 @@ class MultiqcModule(BaseMultiqcModule):
         ## NOTE: turn this on if you want a barplot of trim stats. Does not seem necessary. 
 
     def parse_jax_trimmer_logs(self, f):
-        s_name = f["s_name"].rsplit("_", 1)[0] 
+        s_name = f["s_name"].rsplit(".", 1)[0] 
 
         parsed_data = {}
         regexes = {

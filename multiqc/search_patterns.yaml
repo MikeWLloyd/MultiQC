@@ -964,7 +964,7 @@ jax_trimmer:
 primerclip:
   fn: "*primerclip_runstats.log"
 coverage_metrics:
-  fn: "*_amplicon_coverage_metrics.txt"
+  fn: "*amplicon_coverage_metrics.txt"
 xengsort:
   contents: "# Xengsort classify"
   num_lines: 2
