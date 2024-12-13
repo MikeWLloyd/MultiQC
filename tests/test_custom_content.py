@@ -1,15 +1,14 @@
 import tempfile
-from pathlib import Path
 
 import pytest
 
 import multiqc
-from multiqc import report, config
-from multiqc.core.update_config import update_config, ClConfig
-from multiqc.modules.custom_content import custom_module_classes
-from multiqc.utils import testing
-from multiqc.validation import ConfigValidationError
+from multiqc import config, report
 from multiqc.core.file_search import file_search
+from multiqc.core.update_config import ClConfig, update_config
+from multiqc.modules.custom_content import custom_module_classes
+from multiqc.types import Anchor
+from multiqc.validation import ModuleConfigValidationError
 
 
 def test_custom_content(tmp_path):
@@ -52,10 +51,11 @@ def test_custom_content(tmp_path):
     report.search_files(["custom_content"])
     custom_module_classes()
 
+    anchor = Anchor(f"{id}-section-plot")
     assert len(report.plot_by_id) == 1
-    assert f"{id}-plot" in report.plot_by_id
-    assert report.plot_by_id[f"{id}-plot"].id == f"{id}-plot"
-    assert report.plot_by_id[f"{id}-plot"].plot_type == "xy_line"
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == id
+    assert report.plot_by_id[anchor].plot_type == "xy_line"
 
 
 def test_deprecated_fields(tmp_path, capsys):
@@ -89,20 +89,21 @@ def test_deprecated_fields(tmp_path, capsys):
     custom_module_classes()
 
     assert len(report.plot_by_id) == 1
-    assert f"{id}-plot" in report.plot_by_id
-    assert report.plot_by_id[f"{id}-plot"].id == f"{id}-plot"
-    assert report.plot_by_id[f"{id}-plot"].plot_type == "xy_line"
+    anchor = Anchor(f"{id}-section-plot")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == id
+    assert report.plot_by_id[anchor].plot_type == "xy_line"
 
     err = str(capsys.readouterr().err)
     assert "Line plot's x_lines or y_lines 'label' field is expected to be a string" in err
     assert "'LongDash' is a deprecated dash style, use 'longdash'" in err
-    assert "Deprecated field 'colour'. Use 'color' instead" in err
-    assert "Deprecated field 'xLog'. Use 'xlog' instead" in err
-    assert "Deprecated field 'xPlotLines'. Use 'x_lines' instead" in err
+    assert "deprecated field 'colour'. Use 'color' instead" in err
+    assert "deprecated field 'xLog'. Use 'xlog' instead" in err
+    assert "deprecated field 'xPlotLines'. Use 'x_lines' instead" in err
 
 
 @pytest.mark.parametrize("strict", [True, False])
-def test_wrong_fields(tmp_path, capsys, strict, monkeypatch):
+def test_wrong_fields(tmp_path, caplog, strict, monkeypatch):
     """
     Values of wrong types. Should fail in strict mode, but still produce output in non-strict mode.
     """
@@ -114,10 +115,10 @@ def test_wrong_fields(tmp_path, capsys, strict, monkeypatch):
 #plot_type: 'linegraph'
 #pconfig:
 #    title: 'DupRadar General Linear Model'
-#    xLog: True
-#    xlab: True
 #    y__lab: '% duplicate reads'
-#    ymax: 100
+#    xlab: True
+#    xlog: 'True'
+#    ymax: [1, 2]
 #    ymin: "0"
 0.561167227833894 0.0146313784854042
 """
@@ -130,33 +131,39 @@ def test_wrong_fields(tmp_path, capsys, strict, monkeypatch):
     report.search_files(["custom_content"])
 
     if strict:
-        with pytest.raises(ConfigValidationError):
+        with pytest.raises(ModuleConfigValidationError):
             custom_module_classes()
     else:
         custom_module_classes()
 
-    err = str(capsys.readouterr().err)
-    assert "unrecognized field 'y__lab'" in err
+    out = caplog.text
+    assert "unrecognized field 'y__lab'" in out
     assert (
-        "'xlab': expected type 'Optional[str]', got 'bool' True" in err
-        or "'xlab': expected type 'Union[str, NoneType]', got 'bool' True" in err
+        "• 'ymax': expected type '<class 'float'>', got 'list' [1, 2]" in out
+        or "• 'ymax': expected type 'Union[float, int, NoneType]', got 'list' [1, 2]" in out  # Python < 3.10
     )
-    assert "'ymin': expected type 'Union[float, int, NoneType]', got 'str' '0'" in err
 
     if not strict:
         # Still should produce output unless strict mode:
         assert len(report.plot_by_id) == 1
-        assert f"{id}-plot" in report.plot_by_id
-        assert report.plot_by_id[f"{id}-plot"].id == f"{id}-plot"
-        assert report.plot_by_id[f"{id}-plot"].plot_type == "xy_line"
-        assert report.plot_by_id[f"{id}-plot"].pconfig.title == "DupRadar General Linear Model"
-        assert report.plot_by_id[f"{id}-plot"].pconfig.xlog is True
-        assert report.plot_by_id[f"{id}-plot"].pconfig.xlab is None  # wrong type
-        assert report.plot_by_id[f"{id}-plot"].pconfig.ymax == 100
-        assert report.plot_by_id[f"{id}-plot"].pconfig.ymin is None  # wrong type
+        anchor = Anchor(f"{id}-section-plot")
+        assert anchor in report.plot_by_id
+        assert report.plot_by_id[anchor].id == id
+        assert report.plot_by_id[anchor].plot_type == "xy_line"
+        assert report.plot_by_id[anchor].pconfig.title == "DupRadar General Linear Model"
+        assert (
+            report.plot_by_id[anchor].pconfig.xlab == "True"  # cast to string
+            or report.plot_by_id[anchor].pconfig.xlab is None  # Python < 3.10
+        )
+        assert report.plot_by_id[anchor].pconfig.xlog is True
+        assert report.plot_by_id[anchor].pconfig.ymax is None
+        assert (
+            report.plot_by_id[anchor].pconfig.ymin == 0  # cast to int
+            or report.plot_by_id[anchor].pconfig.ymin is None  # Python < 3.10
+        )
 
 
-def test_missing_id_and_title(tmp_path, capsys):
+def test_missing_id_and_title(tmp_path):
     id = "mysample"
     file = tmp_path / f"{id}_mqc.txt"
     file.write_text(
@@ -174,10 +181,11 @@ def test_missing_id_and_title(tmp_path, capsys):
     custom_module_classes()
 
     assert len(report.plot_by_id) == 1
-    assert f"{id}-plot" in report.plot_by_id
-    assert report.plot_by_id[f"{id}-plot"].id == f"{id}-plot"
-    assert report.plot_by_id[f"{id}-plot"].plot_type == "xy_line"
-    assert report.plot_by_id[f"{id}-plot"].pconfig.xlab == "expression"
+    anchor = Anchor(f"{id}-section-plot")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == id
+    assert report.plot_by_id[anchor].plot_type == "xy_line"
+    assert report.plot_by_id[anchor].pconfig.xlab == "expression"
 
 
 def test_with_separate_config(tmp_path, capsys):
@@ -208,13 +216,14 @@ sp:
     custom_module_classes()
 
     assert len(report.plot_by_id) == 1
-    assert "concordance_heatmap" in report.plot_by_id
-    assert report.plot_by_id["concordance_heatmap"].id == "concordance_heatmap"
-    assert report.plot_by_id["concordance_heatmap"].plot_type == "heatmap"
-    assert len(report.plot_by_id["concordance_heatmap"].datasets) == 1
-    assert report.plot_by_id["concordance_heatmap"].datasets[0].rows == [[1.0, 0.378]]
-    assert report.plot_by_id["concordance_heatmap"].datasets[0].xcats == ["08021342", "08027127"]
-    assert report.plot_by_id["concordance_heatmap"].datasets[0].ycats == ["08021342"]
+    anchor = Anchor("concordance_heatmap")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == anchor
+    assert report.plot_by_id[anchor].plot_type == "heatmap"
+    assert len(report.plot_by_id[anchor].datasets) == 1
+    assert report.plot_by_id[anchor].datasets[0].rows == [[1.0, 0.378]]
+    assert report.plot_by_id[anchor].datasets[0].xcats == ["08021342", "08027127"]
+    assert report.plot_by_id[anchor].datasets[0].ycats == ["08021342"]
 
 
 def test_full_run_with_config(tmp_path, capsys):
@@ -249,8 +258,8 @@ sp:
     )
 
     out = capsys.readouterr().out
-    assert '<h2 class="mqc-module-title" id="concordance-module">Concordance Rates</h2>' in out
-    assert '<div class="mqc-section mqc-section-concordance-module">' in out
+    assert '<h2 class="mqc-module-title" id="concordance">Concordance Rates</h2>' in out
+    assert '<div class="mqc-section mqc-section-concordance">' in out
     assert 'value="0.378"' in out
 
 
@@ -274,15 +283,17 @@ target___test2	2
     )
 
     conf = tmp_path / "multiqc_config.yaml"
-    conf.write_text("""
-custom_data:
-  last_o2o:
-    plot_type: "table"
-
-sp:
-  last_o2o:
-    fn: "target__*tsv"
-""")
+    conf.write_text(
+        """
+        custom_data:
+          last_o2o:
+            plot_type: "table"
+        
+        sp:
+          last_o2o:
+            fn: "target__*tsv"
+        """
+    )
 
     report.analysis_files = [file1, file2]
     update_config(cfg=ClConfig(config_files=[conf], run_modules=["custom_content"]))
@@ -292,9 +303,10 @@ sp:
 
     # Expecting to see only one table, and no bar plot from the _mqc file
     assert len(report.plot_by_id) == 1
-    assert "last_o2o-plot" in report.plot_by_id
-    assert report.plot_by_id["last_o2o-plot"].id == "last_o2o-plot"
-    assert report.plot_by_id["last_o2o-plot"].plot_type == "violin"
+    anchor = Anchor("last_o2o-section-plot")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == "last_o2o"
+    assert report.plot_by_id[anchor].plot_type == "violin"
 
 
 @pytest.mark.parametrize(
@@ -349,23 +361,25 @@ myfile.fasta	chr1	55312	56664	+	GENE""",
     ],
 )
 def test_from_tsv(tmp_path, section_name, is_good, contents):
-    tmp_path.joinpath("mysample_mqc.tsv").write_text(contents)
+    id = "mysample"
+    tmp_path.joinpath(f"{id}_mqc.tsv").write_text(contents)
 
     report.analysis_files = [tmp_path]
     update_config(cfg=ClConfig(run_modules=["custom_content"]))
 
     file_search()
     if not is_good:
-        with pytest.raises(ConfigValidationError):
+        with pytest.raises(ModuleConfigValidationError):
             custom_module_classes()
         return
 
     custom_module_classes()
     assert len(report.plot_by_id) == 1
-    assert "mysample-plot" in report.plot_by_id
-    assert report.plot_by_id["mysample-plot"].plot_type == "violin"
-    assert len(report.plot_by_id["mysample-plot"].datasets) == 1
-    assert report.plot_by_id["mysample-plot"].datasets[0].header_by_metric.keys() == {
+    anchor = Anchor(f"{id}-section-plot")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].plot_type == "violin"
+    assert len(report.plot_by_id[anchor].datasets) == 1
+    assert report.plot_by_id[anchor].datasets[0].header_by_metric.keys() == {
         "SEQUENCE",
         "START",
         "END",
@@ -373,14 +387,47 @@ def test_from_tsv(tmp_path, section_name, is_good, contents):
         "GENE",
     }
 
-    assert report.plot_by_id["mysample-plot"].datasets[0].violin_value_by_sample_by_metric == {
+    assert report.plot_by_id[anchor].datasets[0].violin_value_by_sample_by_metric == {
         "SEQUENCE": {"myfile.fasta": "chr1"},
         "START": {"myfile.fasta": 55312.0},
         "END": {"myfile.fasta": 56664.0},
         "STRAND": {"myfile.fasta": "+"},
         "GENE": {"myfile.fasta": "GENE"},
     }
-    assert report.plot_by_id["mysample-plot"].layout.title.text == "My section" if section_name else "mysample"
+    if section_name:
+        assert report.plot_by_id[anchor].layout.title.text == section_name
+    else:
+        assert report.plot_by_id[anchor].layout.title.text == id.title()
+
+
+def test_heatmap_with_numerical_cats(tmp_path):
+    plot_id = "my_plot"
+    file = tmp_path / "mysample_mqc.json"
+    file.write_text(
+        f"""\
+{{
+    "id": "{plot_id}",
+    "plot_type": "heatmap",
+    "pconfig": {{
+        "title": "Annotation stats (DRAMv)",
+        "min": 0
+    }},
+    "ycats": ["sample 1", "sample 2"],
+    "xcats": [1, 2, 3, 4],
+    "data": [[0.9, 0.87, 0.73, 0], [0, 1, 0, 0.7]]
+}}
+"""
+    )
+
+    report.analysis_files = [file]
+    report.search_files(["custom_content"])
+    custom_module_classes()
+
+    assert len(report.plot_by_id) == 1
+    anchor = Anchor(f"{plot_id}-section-plot")
+    assert anchor in report.plot_by_id
+    assert report.plot_by_id[anchor].id == plot_id
+    assert report.plot_by_id[anchor].plot_type == "heatmap"
 
 
 def test_on_all_example_files(data_dir):
@@ -388,44 +435,9 @@ def test_on_all_example_files(data_dir):
     Run on all example in data/custom_content, verify it didn't fail.
     Deprecate this in the future in favour of more granular tests like those above.
     """
-    report.analysis_files = [data_dir]
+
+    report.analysis_files = [data_dir / "custom_content"]
     config.run_modules = ["custom_content"]
 
     file_search()
     custom_module_classes()
-
-
-# @pytest.mark.parametrize("input_file", list(Path(testing.data_dir() / "custom_content" / "embedded_config").iterdir()))
-# def test_custom_content_files(input_file, tmp_path):
-#     """
-#     Test other files in custom_content test-data dir that they don't fail and generate something
-#     """
-#
-#     report.analysis_files = [input_file]
-#     report.search_files(["custom_content"])
-#     modules = custom_module_classes()
-#
-#     # Verify some sections added:
-#     assert sum(len(m.sections) for m in modules) > 0
-
-
-# TODO: test each file separately
-# @pytest.mark.parametrize(
-#     "input_file", list(Path(testing.data_dir() / "custom_content" / "embedded_config").iterdir())[:1]
-# )
-# def test_custom_content_html(input_file, tmp_path, snapshot):
-#     """
-#     Test the custom content module with a snapshot of the output
-#     """
-#
-#     # Stubs for dynamic values to make the report snapshots identical
-#     config.creation_date = "CREATION_DATE"
-#     config.version = "VERSION"
-#
-#     report.analysis_files = [input_file]
-#     config.run_modules = ["custom_content"]
-#     file_search()
-#     custom_module_classes()
-#     multiqc.write_report(output_dir=str(tmp_path))
-#
-#     snapshot.assert_match((tmp_path / "multiqc_report.html").read_text())

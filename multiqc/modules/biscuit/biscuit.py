@@ -20,12 +20,11 @@ class MultiqcModule(BaseMultiqcModule):
     The second tab of this plot uses the config option `read_count_multiplier`,
     so if millions of reads is not useful for your data you can customise this.
 
-    See [Number base (multiplier)](https://multiqc.info/docs/#number-base-multiplier)
+    See [Number base (multiplier)](https://docs.seqera.io/multiqc/#number-base-multiplier)
     in the documentation.
     """
 
     def __init__(self):
-        # Initialize the parent object
         super(MultiqcModule, self).__init__(
             name="BISCUIT",
             anchor="biscuit",

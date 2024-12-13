@@ -6,6 +6,7 @@ import multiqc
 from multiqc import report
 from multiqc.core.update_config import ClConfig
 from multiqc.plots import table
+from multiqc.types import Anchor
 
 
 def test_multiqc_run(data_dir, tmp_path):
@@ -64,11 +65,11 @@ def test_parse_logs_ignore_samples(data_dir):
     )
 
     assert multiqc.list_samples() == ["meta_contigs_1"]
-    assert multiqc.list_modules() == ["QUAST"]
+    assert multiqc.list_modules() == ["quast"]
 
 
 def test_custom_module(tmp_path):
-    module = multiqc.BaseMultiqcModule(name="my-module", anchor="custom_data")
+    module = multiqc.BaseMultiqcModule(name="my-module", anchor=Anchor("custom_data"))
     module.add_section(
         name="Custom Section",
         description="Custom description",
@@ -92,17 +93,17 @@ def test_software_versions_section(data_dir, tmp_path, capsys):
     multiqc.parse_logs(data_dir / "modules/fastp")
     multiqc.parse_logs(data_dir / "modules/bcftools")
     multiqc.write_report(filename="stdout")  # triggers adding software_versions module
-    assert multiqc.list_modules() == ["fastp", "Bcftools", "Software Versions"]
+    assert multiqc.list_modules() == ["fastp", "bcftools", "multiqc_software_versions"]
 
 
 def test_write_report_multiple_times(data_dir, tmp_path):
     multiqc.parse_logs(data_dir / "modules/fastp")
     multiqc.write_report(output_dir=str(tmp_path))
-    assert multiqc.list_modules() == ["fastp", "Software Versions"]
+    assert multiqc.list_modules() == ["fastp", "multiqc_software_versions"]
 
     multiqc.parse_logs(data_dir / "modules/bcftools")
     multiqc.write_report(output_dir=str(tmp_path))
-    assert multiqc.list_modules() == ["fastp", "Bcftools", "Software Versions"]
+    assert multiqc.list_modules() == ["fastp", "bcftools", "multiqc_software_versions"]
 
 
 def test_run_twice(data_dir, tmp_path):

@@ -1,11 +1,13 @@
+from collections import Counter, defaultdict
 import json
 import logging
 import re
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from multiqc import config
 from multiqc.base_module import BaseMultiqcModule, ModuleNoSamplesFound
-from multiqc.plots import bargraph, linegraph
+from multiqc.plots import bargraph, linegraph, table
+from multiqc.types import ColumnKey
 
 log = logging.getLogger(__name__)
 
@@ -60,10 +62,18 @@ class MultiqcModule(BaseMultiqcModule):
         self.fastp_qual_plotdata = dict()
         self.fastp_gc_content_data = dict()
         self.fastp_n_content_data = dict()
-        for k in ["read1_before_filtering", "read2_before_filtering", "read1_after_filtering", "read2_after_filtering"]:
+        self.fastp_overrepresented_sequences = dict()
+        for k in [
+            "read1_before_filtering",
+            "read2_before_filtering",
+            "read1_after_filtering",
+            "read2_after_filtering",
+            "merged_and_filtered",
+        ]:
             self.fastp_qual_plotdata[k] = dict()
             self.fastp_gc_content_data[k] = dict()
             self.fastp_n_content_data[k] = dict()
+            self.fastp_overrepresented_sequences[k] = dict()
         for s_name, parsed_json in data_by_sample.items():
             self.process_parsed_data(parsed_json, s_name)
 
@@ -71,7 +81,7 @@ class MultiqcModule(BaseMultiqcModule):
         self.write_data_file(self.fastp_all_data, "multiqc_fastp")
 
         # General Stats Table
-        self.fastp_general_stats_table()
+        self.fastp_general_stats_table(self.fastp_data)
 
         # Filtering statistics bar plot
         self.add_section(
@@ -156,6 +166,17 @@ class MultiqcModule(BaseMultiqcModule):
         except RuntimeError:
             log.debug("No data found for 'N content' plot")
 
+        # Overrepresented sequences plot
+        try:
+            self.add_section(
+                name="Overrepresented Sequences",
+                anchor="fastp-overrepresented-sequences",
+                description="Overrepresented sequences in the reads.",
+                plot=self.fastp_overrepresented_sequences_plot(),
+            )
+        except RuntimeError:
+            log.debug("No data found for 'Overrepresented Sequences' plot")
+
     def parse_fastp_log(self, f) -> Tuple[Optional[str], Dict]:
         """Parse the JSON output from fastp and save the summary statistics"""
         try:
@@ -212,7 +233,13 @@ class MultiqcModule(BaseMultiqcModule):
         self.fastp_duplication_plotdata[s_name] = {}
         self.fastp_insert_size_data[s_name] = {}
         self.fastp_all_data[s_name] = parsed_json
-        for k in ["read1_before_filtering", "read2_before_filtering", "read1_after_filtering", "read2_after_filtering"]:
+        for k in [
+            "read1_before_filtering",
+            "read2_before_filtering",
+            "read1_after_filtering",
+            "read2_after_filtering",
+            "merged_and_filtered",
+        ]:
             self.fastp_qual_plotdata[k][s_name] = {}
             self.fastp_gc_content_data[k][s_name] = {}
             self.fastp_n_content_data[k][s_name] = {}
@@ -303,7 +330,13 @@ class MultiqcModule(BaseMultiqcModule):
         except KeyError:
             log.debug(f"No insert size plot data: {s_name}")
 
-        for k in ["read1_before_filtering", "read2_before_filtering", "read1_after_filtering", "read2_after_filtering"]:
+        for k in [
+            "read1_before_filtering",
+            "read2_before_filtering",
+            "read1_after_filtering",
+            "read2_after_filtering",
+            "merged_and_filtered",
+        ]:
             # Read quality data
             try:
                 for i, v in enumerate(parsed_json[k]["quality_curves"]["mean"]):
@@ -319,6 +352,12 @@ class MultiqcModule(BaseMultiqcModule):
                     self.fastp_n_content_data[k][s_name][i + 1] = float(v) * 100.0
             except KeyError:
                 log.debug(f"Content curve data {k} not found: {s_name}")
+
+            # Overrepresented sequences
+            try:
+                self.fastp_overrepresented_sequences[k][s_name] = parsed_json[k]["overrepresented_sequences"]
+            except KeyError:
+                log.debug(f"Overrepresented sequences data {k} not found: {s_name}")
 
         # Remove empty dicts
         if len(self.fastp_data[s_name]) == 0:
@@ -336,74 +375,61 @@ class MultiqcModule(BaseMultiqcModule):
         if "fastp_version" in parsed_json["summary"]:
             self.add_software_version(parsed_json["summary"]["fastp_version"], s_name)
 
-    def fastp_general_stats_table(self):
+    def fastp_general_stats_table(self, data_by_sample):
         """Take the parsed stats from the fastp report and add it to the
         General Statistics table at the top of the report"""
 
-        headers = {
-            "pct_duplication": {
-                "title": "% Duplication",
-                "description": "Duplication rate before filtering",
-                "max": 100,
-                "min": 0,
-                "suffix": "%",
-                "scale": "RdYlGn-rev",
+        self.general_stats_addcols(
+            data_by_sample,
+            headers={
+                "pct_duplication": {
+                    "title": "% Duplication",
+                    "description": "Duplication rate before filtering",
+                    "suffix": "%",
+                    "scale": "RdYlGn-rev",
+                },
+                "after_filtering_q30_rate": {
+                    "title": "% > Q30",
+                    "description": "Percentage of reads > Q30 after filtering",
+                    "modify": lambda x: x * 100.0,
+                    "scale": "GnBu",
+                    "suffix": "%",
+                    "hidden": True,
+                },
+                "after_filtering_q30_bases": {
+                    "title": f"{config.base_count_prefix} Q30 bases",
+                    "description": f"Bases > Q30 after filtering ({config.base_count_desc})",
+                    "scale": "GnBu",
+                    "shared_key": "base_count",
+                    "hidden": True,
+                },
+                "filtering_result_passed_filter_reads": {
+                    "title": "Reads After Filtering",
+                    "description": f"Total reads after filtering ({config.read_count_desc})",
+                    "scale": "Blues",
+                    "shared_key": "read_count",
+                },
+                "after_filtering_gc_content": {
+                    "title": "GC content",
+                    "description": "GC content after filtering",
+                    "suffix": "%",
+                    "scale": "Blues",
+                    "modify": lambda x: x * 100.0,
+                },
+                "pct_surviving": {
+                    "title": "% PF",
+                    "description": "Percent reads passing filter",
+                    "suffix": "%",
+                    "scale": "BuGn",
+                },
+                "pct_adapter": {
+                    "title": "% Adapter",
+                    "description": "Percentage adapter-trimmed reads",
+                    "suffix": "%",
+                    "scale": "RdYlGn-rev",
+                },
             },
-            "after_filtering_q30_rate": {
-                "title": "% > Q30",
-                "description": "Percentage of reads > Q30 after filtering",
-                "min": 0,
-                "max": 100,
-                "modify": lambda x: x * 100.0,
-                "scale": "GnBu",
-                "suffix": "%",
-                "hidden": True,
-            },
-            "after_filtering_q30_bases": {
-                "title": f"{config.base_count_prefix} Q30 bases",
-                "description": f"Bases > Q30 after filtering ({config.base_count_desc})",
-                "min": 0,
-                "modify": lambda x: x * config.base_count_multiplier,
-                "scale": "GnBu",
-                "shared_key": "base_count",
-                "hidden": True,
-            },
-            "filtering_result_passed_filter_reads": {
-                "title": f"{config.read_count_prefix} Reads After Filtering",
-                "description": f"Total reads after filtering ({config.read_count_desc})",
-                "min": 0,
-                "scale": "Blues",
-                "modify": lambda x: x * config.read_count_multiplier,
-                "shared_key": "read_count",
-            },
-            "after_filtering_gc_content": {
-                "title": "GC content",
-                "description": "GC content after filtering",
-                "max": 100,
-                "min": 0,
-                "suffix": "%",
-                "scale": "Blues",
-                "modify": lambda x: x * 100.0,
-            },
-            "pct_surviving": {
-                "title": "% PF",
-                "description": "Percent reads passing filter",
-                "max": 100,
-                "min": 0,
-                "suffix": "%",
-                "scale": "BuGn",
-            },
-            "pct_adapter": {
-                "title": "% Adapter",
-                "description": "Percentage adapter-trimmed reads",
-                "max": 100,
-                "min": 0,
-                "suffix": "%",
-                "scale": "RdYlGn-rev",
-            },
-        }
-
-        self.general_stats_addcols(self.fastp_data, headers)
+        )
 
     def fastp_filtered_reads_chart(self):
         """Function to generate the fastp filtered reads bar plot"""
@@ -471,6 +497,103 @@ class MultiqcModule(BaseMultiqcModule):
         }
         return linegraph.plot(pdata, pconfig)
 
+    def fastp_overrepresented_sequences_plot(self):
+        cnt_by_sample = defaultdict(Counter)
+        cnt_by_seq = Counter()
+        pct_by_seq = Counter()
+        samples_by_seq = defaultdict(set)
+
+        for read_name, by_sample in self.fastp_overrepresented_sequences.items():
+            for s_name, by_seq in by_sample.items():
+                for seq, count in by_seq.items():
+                    cnt_by_seq[seq] += count
+                    pct_by_seq[seq] += count / self.fastp_data[s_name]["before_filtering_total_reads"]
+                    cnt_by_sample[read_name][s_name] += count
+                    samples_by_seq[seq].add(s_name)
+
+        data_labels, cnt_by_sample_pdata = self.filter_pconfig_pdata_subplots(
+            cnt_by_sample, "Overrepresented Sequences"
+        )
+        self.add_section(
+            name="Overrepresented sequences by sample",
+            anchor="fastp_overrepresented_sequences",
+            description="The total amount of overrepresented sequences found in each library.",
+            plot=bargraph.plot(
+                [
+                    {sn: {"overrepresented_sequences": cnt} for sn, cnt in cnt_by_sample.items()}
+                    for cnt_by_sample in cnt_by_sample_pdata
+                ],
+                {
+                    "overrepresented_sequences": {"name": "Overrepresented sequences"},
+                },
+                {
+                    "id": "fastp_overrepresented_sequences_plot",
+                    "title": "Fastp: Overrepresented sequences",
+                    "cpswitch": False,
+                    "ylab": "Number of overrepresented sequences",
+                    "data_labels": data_labels,
+                    "tt_decimals": 0,
+                },
+            ),
+        )
+
+        # Top overrepresented sequences across all samples
+        top_n = getattr(config, "fastp_config", {}).get("top_overrepresented_sequences", 20)
+        top_seqs = cnt_by_seq.most_common(top_n)
+        table_data: Dict[str, Dict[str, Any]] = {
+            seq: {
+                "sequence": seq,
+                "total_percent": pct_by_seq[seq],
+                "total_count": cnt_by_seq[seq],
+                "samples": len(samples_by_seq[seq]),
+            }
+            for seq, _ in top_seqs
+        }
+
+        self.add_section(
+            name="Top overrepresented sequences",
+            anchor="fastp_top_overrepresented_sequences",
+            description=f"""
+            Top overrepresented sequences across all samples. The table shows {top_n}
+            most overrepresented sequences across all samples, ranked by the number of occurrences across all samples.
+            """,
+            plot=table.plot(
+                table_data,
+                headers={
+                    ColumnKey("samples"): {
+                        "title": "Reports",
+                        "description": "Number of fastp reports where this sequence is found as overrepresented",
+                        "scale": "Greens",
+                        "min": 0,
+                        "format": "{:,d}",
+                    },
+                    ColumnKey("total_count"): {
+                        "title": "Occurrences",
+                        "description": "Total number of occurrences of the sequence (among the samples where the sequence is overrepresented)",
+                        "scale": "Blues",
+                        "min": 0,
+                        "format": "{:,d}",
+                    },
+                    ColumnKey("total_percent"): {
+                        "title": "% of all reads",
+                        "description": "Total number of occurrences as the percentage of all reads (among samples where the sequence is overrepresented)",
+                        "scale": "Blues",
+                        "min": 0,
+                        "max": 100,
+                        "suffix": "%",
+                        "format": "{:,.4f}",
+                    },
+                },
+                pconfig={
+                    "namespace": self.name,
+                    "id": "fastp_top_overrepresented_sequences_table",
+                    "title": "fastp: Top overrepresented sequences",
+                    "col1_header": "Overrepresented sequence",
+                    "sort_rows": False,
+                },
+            ),
+        )
+
     @staticmethod
     def filter_pconfig_pdata_subplots(data, label):
         data_labels = []
@@ -492,8 +615,12 @@ class MultiqcModule(BaseMultiqcModule):
                 "name": "Read 2: After filtering",
                 "ylab": f"R2 After filtering: {label}",
             },
+            "merged_and_filtered": {
+                "name": "Merged and filtered",
+                "ylab": f"{label}",
+            },
         }.items():
-            if sum([len(data[k][x]) for x in data[k]]) > 0:
+            if any(data[k][x] for x in data[k]):
                 data_labels.append(dl)
                 pdata.append(data[k])
 

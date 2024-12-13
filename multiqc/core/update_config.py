@@ -2,13 +2,14 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Set
 
 from pydantic import BaseModel
 
 from multiqc import report, config
 from multiqc.core.exceptions import RunError
-from multiqc.core import log_and_rich, plugin_hooks, strict_helpers
+from multiqc.core import log_and_rich, plugin_hooks
+from multiqc.utils import util_functions
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +61,13 @@ class ClConfig(BaseModel):
     custom_css_files: List[str] = []
     module_order: List[Union[str, Dict]] = []
     preserve_module_raw_data: Optional[bool] = None
+    data_dump_file_write_raw: Optional[bool] = None
     extra_fn_clean_exts: List = []
     extra_fn_clean_trim: List = []
     unknown_options: Optional[Dict] = None
 
 
-def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=False):
+def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=False, print_intro_fn=None):
     """
     Update config and re-initialize logger.
 
@@ -87,12 +89,17 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=Fal
         config.no_ansi = cfg.no_ansi
     if cfg.verbose is not None:
         config.verbose = cfg.verbose > 0
+
     log_and_rich.init_log(log_to_file=log_to_file)
+    if print_intro_fn is not None:
+        print_intro_fn()
 
     logger.debug(f"This is MultiQC v{config.version}")
     logger.debug("Running Python " + sys.version.replace("\n", " "))
 
     plugin_hooks.mqc_trigger("before_config")
+
+    config.loaded_user_files = set()
 
     # Re-finding implicit configs
     config.find_user_files()
@@ -154,6 +161,7 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=Fal
     if cfg.development is not None:
         config.development = cfg.development
     if cfg.make_pdf:
+        config.make_pdf = cfg.make_pdf
         config.template = "simple"
     if config.template == "simple":
         config.plots_force_flat = True
@@ -192,6 +200,8 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=Fal
         config.fn_clean_trim = list(cfg.extra_fn_clean_trim) + config.fn_clean_trim
     if cfg.preserve_module_raw_data is not None:
         config.preserve_module_raw_data = cfg.preserve_module_raw_data
+    if cfg.data_dump_file_write_raw is not None:
+        config.data_dump_file_write_raw = cfg.data_dump_file_write_raw
 
     if config.development and "png" not in config.export_plot_formats:
         config.export_plot_formats.append("png")
@@ -216,14 +226,6 @@ def update_config(*analysis_dir, cfg: Optional[ClConfig] = None, log_to_file=Fal
     # Prep module configs
     report.top_modules = [m if isinstance(m, dict) else {m: {}} for m in config.top_modules]
     report.module_order = [m if isinstance(m, dict) else {m: {}} for m in config.module_order]
-    # Lint the module config
-    mod_keys = [list(m.keys())[0] for m in report.module_order]
-    if config.strict:
-        for m in config.avail_modules.keys():
-            if m not in mod_keys:
-                errmsg = f"LINT: Module '{m}' not found in config.module_order"
-                logger.error(errmsg)
-                report.lint_errors.append(errmsg)
 
     if cfg.unknown_options:
         config.kwargs = cfg.unknown_options  # plug in command line options
