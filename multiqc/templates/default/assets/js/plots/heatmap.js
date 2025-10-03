@@ -6,6 +6,7 @@ class HeatmapPlot extends Plot {
     this.square = dump["square"];
     this.filtXCatsSettings = [];
     this.filtYCatsSettings = [];
+    this.clusterSwitchClusteredActive = dump["cluster_switch_clustered_active"];
   }
 
   activeDatasetSize() {
@@ -15,12 +16,15 @@ class HeatmapPlot extends Plot {
     return rows[0].length; // no columns in a row
   }
 
-  prepData() {
+  prepData(dataset) {
     // Prepare data to either build Plotly traces or export as a file
-    let dataset = this.datasets[this.activeDatasetIdx];
-    let rows = dataset["rows"];
-    let xcats = dataset["xcats"];
-    let ycats = dataset["ycats"];
+    dataset = dataset ?? this.datasets[this.activeDatasetIdx];
+    let rows =
+      this.clusterSwitchClusteredActive && dataset["rows_clustered"] ? dataset["rows_clustered"] : dataset["rows"];
+    let xcats =
+      this.clusterSwitchClusteredActive && dataset["xcats_clustered"] ? dataset["xcats_clustered"] : dataset["xcats"];
+    let ycats =
+      this.clusterSwitchClusteredActive && dataset["ycats_clustered"] ? dataset["ycats_clustered"] : dataset["ycats"];
 
     if (this.xCatsAreSamples) {
       let xcatsSettings = applyToolboxSettings(xcats);
@@ -40,6 +44,56 @@ class HeatmapPlot extends Plot {
       ycats = this.filtYCatsSettings.map((s) => s.name);
     }
     return [rows, xcats, ycats];
+  }
+
+  plotAiHeader() {
+    let result = super.plotAiHeader();
+    if (this.pconfig.xlab) result += `X axis: ${this.pconfig.xlab}\n`;
+    if (this.pconfig.ylab) result += `Y axis: ${this.pconfig.ylab}\n`;
+    if (this.pconfig.zlab) result += `Z axis: ${this.pconfig.zlab}\n`;
+    return result;
+  }
+
+  formatDatasetForAiPrompt(dataset) {
+    let prompt = "";
+    let [rows, xcats, ycats] = this.prepData(dataset);
+
+    // Check if all samples are hidden
+    if (xcats.length === 0 || ycats.length === 0) {
+      prompt +=
+        "All samples are hidden by user, so no data to analyse. Please inform user to use the toolbox to unhide samples.\n";
+      return prompt;
+    }
+
+    if (xcats) {
+      if (ycats) {
+        prompt = "|";
+        if (this.yCatsAreSamples) prompt += "Sample";
+      }
+      if (this.xCatsAreSamples) {
+        const xPseudonyms = this.filtXCatsSettings.map((s) => s.pseudonym ?? s.name);
+        prompt += "|" + xPseudonyms.join("|") + "|\n";
+      } else {
+        prompt += "|" + xcats.join("|") + "|\n";
+      }
+      if (ycats) prompt += "|---";
+      prompt += "|" + xcats.map(() => "---").join("|") + "|\n";
+    }
+    for (let i = 0; i < rows.length; i++) {
+      if (ycats) {
+        if (this.yCatsAreSamples) {
+          const yPseudonyms = this.filtYCatsSettings.map((s) => s.pseudonym ?? s.name);
+          prompt += "|" + yPseudonyms[i];
+        } else {
+          prompt += "|" + ycats[i];
+        }
+      }
+      prompt +=
+        "|" +
+        rows[i].map((x) => (!Number.isFinite(x) ? "" : Number.isInteger(x) ? x : parseFloat(x.toFixed(2)))).join("|") +
+        "|\n";
+    }
+    return prompt;
   }
 
   buildTraces() {
@@ -107,5 +161,20 @@ $(function () {
     $("#" + anchor + "_range_slider_" + minmax + ", #" + anchor + "_range_slider_" + minmax + "_txt").val(
       $(this).val(),
     );
+  });
+
+  // Listener for clustering toggle
+  $('button[data-action="unclustered"], button[data-action="clustered"]').on("click", function (e) {
+    e.preventDefault();
+    let $btn = $(this);
+    let plotAnchor = $(this).data("plot-anchor");
+    let plot = mqc_plots[plotAnchor];
+
+    // Toggle buttons
+    $btn.toggleClass("active").siblings().toggleClass("active");
+
+    // Update plot
+    plot.clusterSwitchClusteredActive = $btn.data("action") === "clustered";
+    renderPlot(plotAnchor); // re-render
   });
 });

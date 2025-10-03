@@ -2,6 +2,7 @@ class BarPlot extends Plot {
   constructor(dump) {
     super(dump);
     this.filteredSettings = [];
+    this.clusterSwitchClusteredActive = dump["cluster_switch_clustered_active"];
   }
 
   activeDatasetSize() {
@@ -11,15 +12,20 @@ class BarPlot extends Plot {
     return cats[0].data.length; // no data for a category
   }
 
-  prepData() {
-    let cats = this.datasets[this.activeDatasetIdx]["cats"];
-    let samples = this.datasets[this.activeDatasetIdx]["samples"];
+  prepData(dataset) {
+    dataset = dataset ?? this.datasets[this.activeDatasetIdx];
+    // Use clustered data if clustering is active and available
+    let cats =
+      this.clusterSwitchClusteredActive && dataset["cats_clustered"] ? dataset["cats_clustered"] : dataset["cats"];
+    let samples =
+      this.clusterSwitchClusteredActive && dataset["samples_clustered"]
+        ? dataset["samples_clustered"]
+        : dataset["samples"];
 
     let samplesSettings = applyToolboxSettings(samples);
 
     // Rename and filter samples:
     this.filteredSettings = samplesSettings.filter((s) => !s.hidden);
-    samples = this.filteredSettings.map((s) => s.name);
 
     cats = cats.map((cat) => {
       let data = this.pActive ? cat["data_pct"] : cat.data;
@@ -30,7 +36,60 @@ class BarPlot extends Plot {
       };
     });
 
-    return [cats, samples];
+    return [cats];
+  }
+
+  plotAiHeader() {
+    let result = super.plotAiHeader();
+    if (this.pconfig.ylab) result += `Values: ${this.pconfig.ylab}\n`;
+    return result;
+  }
+
+  formatDatasetForAiPrompt(dataset) {
+    let prompt = "";
+
+    let cats = dataset.cats;
+    let samples = dataset.samples;
+    let samplesSettings = applyToolboxSettings(samples);
+
+    // Check if all samples are hidden
+    if (samplesSettings.every((s) => s.hidden)) {
+      prompt +=
+        "All samples are hidden by user, so no data to analyse. Please inform user to use the toolbox to unhide samples.\n";
+      return prompt;
+    }
+
+    prompt += "|Sample|" + cats.map((cat) => cat.name).join("|") + "|\n";
+    prompt += "|---|" + cats.map(() => "---").join("|") + "|\n";
+
+    let suffix = "";
+    if (this.pActive) {
+      suffix += "%";
+      if (this.layout.xaxis.ticksuffix && this.layout.xaxis.ticksuffix !== "%") {
+        suffix += " " + this.layout.xaxis.ticksuffix;
+      }
+    } else if (this.layout.xaxis.ticksuffix) {
+      suffix += " " + this.layout.xaxis.ticksuffix;
+    }
+
+    // Create data rows
+
+    samplesSettings.forEach((sample, idx) => {
+      if (sample.hidden) return;
+      prompt +=
+        `|${sample.pseudonym ?? sample.name}|` +
+        cats
+          .map((cat) => {
+            let val = this.pActive ? cat.data_pct[idx] : cat.data[idx];
+            val = !Number.isFinite(val) ? "" : Number.isInteger(val) ? val : parseFloat(val.toFixed(2));
+            if (val !== "" && suffix) val += suffix;
+            return val;
+          })
+          .join("|") +
+        "|\n";
+    });
+
+    return prompt;
   }
 
   resize(newHeight) {
@@ -44,8 +103,8 @@ class BarPlot extends Plot {
 
   // Constructs and returns traces for the Plotly plot
   buildTraces() {
-    let [cats, samples] = this.prepData();
-    if (cats.length === 0 || samples.length === 0) return [];
+    let [cats] = this.prepData();
+    if (cats.length === 0 || this.filteredSettings.length === 0) return [];
 
     const maxTicks = (this.layout.height - 140) / 12;
     this.recalculateTicks(this.filteredSettings, this.layout.yaxis, maxTicks);
@@ -81,7 +140,7 @@ class BarPlot extends Plot {
         // Plotly adds giant gaps between bars in the group mode when adding each sample as a
         // separate trace. Sacrificing dimming the de-highlighted bars to get rid of this gap.
         let params = JSON.parse(JSON.stringify(traceParams)); // deep copy
-        samples = this.filteredSettings.map((s) => s.name);
+        let samples = this.filteredSettings.map((s) => s.name);
         params.marker.color = "rgb(" + cat.color + ")";
 
         return {
@@ -97,14 +156,38 @@ class BarPlot extends Plot {
   }
 
   exportData(format) {
-    let [cats, filteredSettings] = this.prepData();
+    let [cats] = this.prepData();
 
     let delim = format === "tsv" ? "\t" : ",";
 
     let csv = "Sample" + delim + cats.map((cat) => cat.name).join(delim) + "\n";
-    for (let i = 0; i < filteredSettings.length; i++) {
-      csv += filteredSettings[i] + delim + cats.map((cat) => cat.data[i]).join(delim) + "\n";
+    for (let i = 0; i < this.filteredSettings.length; i++) {
+      csv += this.filteredSettings[i].name + delim + cats.map((cat) => cat.data[i]).join(delim) + "\n";
     }
     return csv;
   }
 }
+
+$(function () {
+  // Listener for bar plot clustering toggle - similar to heatmap clustering
+  $('button[data-action="unclustered"], button[data-action="clustered"]').on("click", function (e) {
+    e.preventDefault();
+    let $btn = $(this);
+    let plotAnchor = $(this).data("plot-anchor");
+    let plot = mqc_plots[plotAnchor];
+
+    // Only proceed if this is a bar plot
+    if (!plot || !(plot instanceof BarPlot)) {
+      return;
+    }
+
+    // Toggle buttons
+    $btn.toggleClass("active").siblings().toggleClass("active");
+
+    // Update plot state
+    plot.clusterSwitchClusteredActive = $btn.data("action") === "clustered";
+
+    // Re-render plot
+    renderPlot(plotAnchor);
+  });
+});

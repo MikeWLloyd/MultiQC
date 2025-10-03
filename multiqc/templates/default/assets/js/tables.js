@@ -103,95 +103,6 @@ $(function () {
       }
     });
 
-    /////// COLUMN CONFIG
-    // show + hide columns
-    $(".mqc_table_col_visible").change(function () {
-      let tableAnchor = $(this).data("table-anchor");
-      let violinAnchor = $(this).data("violin-anchor");
-      mqc_table_col_updateVisible(tableAnchor, violinAnchor);
-    });
-    // Bulk set visible / hidden
-    $(".mqc_config_modal_bulk_visible").click(function (e) {
-      e.preventDefault();
-      let tableAnchor = $(this).data("table-anchor");
-      let violinAnchor = $(this).data("violin-anchor");
-      let visible = $(this).data("action") === "showAll";
-      $("#" + tableAnchor + "_config_modal_table tbody .mqc_table_col_visible").prop("checked", visible);
-      mqc_table_col_updateVisible(tableAnchor, violinAnchor);
-    });
-    function mqc_table_col_updateVisible(tableAnchor, violinAnchor) {
-      let target = "#" + tableAnchor;
-
-      let metricsHidden = {};
-      $(target + "_config_modal_table .mqc_table_col_visible").each(function () {
-        let metric = $(this).val();
-        metricsHidden[metric] = !$(this).is(":checked");
-      });
-
-      Object.entries(metricsHidden).map(([metric, hidden]) => {
-        if (hidden) {
-          $(target + " ." + metric).addClass("column-hidden");
-          $(target + "_config_modal_table ." + metric).addClass("text-muted");
-        } else {
-          $(target + " ." + metric).removeClass("column-hidden");
-          $(target + "_config_modal_table ." + metric).removeClass("text-muted");
-        }
-      });
-      // Hide empty rows
-      $(target + " tbody tr").each(function () {
-        let trIsEmpty = true;
-        let tr = $(this);
-        tr.find("td").each(function () {
-          let td = $(this);
-          if (!td.hasClass("column-hidden") && !td.hasClass("sorthandle") && td.text() !== "") {
-            trIsEmpty = false;
-          }
-        });
-        if (trIsEmpty) {
-          tr.addClass("row-empty");
-        } else {
-          tr.removeClass("row-empty");
-        }
-      });
-      // Update counts
-      $(target + "_numrows").text($(target + " tbody tr:visible").length);
-      $(target + "_numcols").text($(target + " thead th:visible").length - 1);
-
-      // Also update the violin plot
-      if (violinAnchor !== undefined) {
-        let plot = mqc_plots[violinAnchor];
-        plot.datasets.map((dataset) => {
-          dataset["metrics"].map((metric) => {
-            dataset["header_by_metric"][metric]["hidden"] = metricsHidden[metric];
-          });
-        });
-        renderPlot(violinAnchor);
-      }
-    }
-
-    // Make rows in MultiQC "Configure Columns" tables sortable
-    $(".mqc_config_modal").on("show.bs.modal", function (e) {
-      $(e.target)
-        .find(".mqc_table.mqc_sortable tbody")
-        .sortable({
-          handle: ".sorthandle",
-          helper: function fixWidthHelper(e, ui) {
-            ui.children().each(function () {
-              $(this).width($(this).width());
-            });
-            return ui;
-          },
-        });
-    });
-
-    // Change order of columns
-    $(".mqc_config_modal_table").on("sortstop", function (e, ui) {
-      change_mqc_table_col_order($(this));
-    });
-    $(".mqc_config_modal_table").bind("sortEnd", function () {
-      change_mqc_table_col_order($(this));
-    });
-
     // TOOLBOX LISTENERS
 
     // highlight samples
@@ -419,32 +330,74 @@ $(function () {
         plotTitle = tableAnchor.replace(/_/g, " ");
       }
       let plotDataset = [];
+
+      // Get all sample names first
+      let samples = $("#" + tableAnchor + " tbody tr")
+        .map(function () {
+          return $(this).children("th.rowheader").find(".th-sample-name").text();
+        })
+        .get();
+
+      // Apply toolbox settings to get highlighting info
+      let sampleSettings = applyToolboxSettings(samples);
+
       $("#" + tableAnchor + " tbody tr").each(function (e) {
-        let sName = $(this).children("th.rowheader").text();
+        let tr = $(this);
+        let sName = $(this).children("th.rowheader").find(".th-sample-name").text();
         let val_1 = $(this)
           .children("td." + col1)
           .data("sorting-val");
         let val_2 = $(this)
           .children("td." + col2)
           .data("sorting-val");
+
+        // Get settings for this sample
+        let settings = sampleSettings[samples.indexOf(sName)];
+
+        // Skip hidden samples
+        if (settings.hidden) {
+          return true;
+        }
+
         if (!isNaN(parseFloat(val_1)) && isFinite(val_1) && !isNaN(parseFloat(val_2)) && isFinite(val_2)) {
-          plotDataset.push({
-            name: sName,
+          let point = {
+            name: settings.name ?? sName,
             x: parseFloat(val_1),
             y: parseFloat(val_2),
-          });
+          };
+
+          // Add highlighting color if any samples are highlighted
+          if (sampleSettings.some((s) => s.highlight)) {
+            point.marker = {
+              color: settings.highlight ?? "#cccccc",
+            };
+          }
+
+          plotDataset.push(point);
         }
       });
+
+      // Reorder points if we have highlights
+      if (sampleSettings.some((s) => s.highlight)) {
+        let highlighted = plotDataset.filter((p) => p.marker?.color !== "#cccccc");
+        let nonHighlighted = plotDataset.filter((p) => !p.marker || p.marker.color === "#cccccc");
+        plotDataset = nonHighlighted.concat(highlighted);
+      }
+
       if (Object.keys(plotDataset).length > 0) {
         let target = "table_scatter_plot";
         let traces = plotDataset.map(function (point) {
-          return {
+          let trace = {
             type: "scatter",
             x: [point.x],
             y: [point.y],
             name: point.name,
             text: [point.name],
           };
+          if (point.marker) {
+            trace.marker = point.marker;
+          }
+          return trace;
         });
         let layout = {
           title: plotTitle,
@@ -456,6 +409,7 @@ $(function () {
             title: col2_name,
             range: [col2_min, col2_max],
           },
+          showlegend: false,
         };
         let config = {
           responsive: true,
@@ -489,6 +443,110 @@ $(function () {
       plotDiv.html("<small>Please select two table columns.</small>");
       plotDiv.addClass("not_rendered");
     }
+  });
+
+  // Update scatter plot when samples are hidden, renamed, or highlighted
+  $(document).on("mqc_hidesamples mqc_renamesamples mqc_highlights", function (e, f_texts, regex_mode) {
+    if ($("#table_scatter_plot").length && !$("#table_scatter_plot").hasClass("not_rendered")) {
+      let col1 = $("#table_scatter_col1").val().replace("header_", "");
+      let col2 = $("#table_scatter_col2").val().replace("header_", "");
+      if (col1 !== "" && col2 !== "") {
+        $("#table_scatter_form select").trigger("change");
+      }
+    }
+  });
+});
+
+// Column configuration modal. Always add even if we have to tables,
+// as we need to hide columns in the violin plot
+$(function () {
+  /////// COLUMN CONFIG
+  // show + hide columns
+  $(".mqc_table_col_visible").change(function () {
+    let tableAnchor = $(this).data("table-anchor");
+    let violinAnchor = $(this).data("violin-anchor");
+    mqc_table_col_updateVisible(tableAnchor, violinAnchor);
+  });
+  // Bulk set visible / hidden
+  $(".mqc_config_modal_bulk_visible").click(function (e) {
+    e.preventDefault();
+    let tableAnchor = $(this).data("table-anchor");
+    let violinAnchor = $(this).data("violin-anchor");
+    let visible = $(this).data("action") === "showAll";
+    $("#" + tableAnchor + "_config_modal_table tbody .mqc_table_col_visible").prop("checked", visible);
+    mqc_table_col_updateVisible(tableAnchor, violinAnchor);
+  });
+  function mqc_table_col_updateVisible(tableAnchor, violinAnchor) {
+    let target = "#" + tableAnchor;
+
+    let metricsHidden = {};
+    $(target + "_config_modal_table .mqc_table_col_visible").each(function () {
+      let metric = $(this).val();
+      metricsHidden[metric] = !$(this).is(":checked");
+    });
+
+    Object.entries(metricsHidden).map(([metric, hidden]) => {
+      if (hidden) {
+        $(target + " ." + metric).addClass("column-hidden");
+        $(target + "_config_modal_table ." + metric).addClass("text-muted");
+      } else {
+        $(target + " ." + metric).removeClass("column-hidden");
+        $(target + "_config_modal_table ." + metric).removeClass("text-muted");
+      }
+    });
+    // Hide empty rows
+    $(target + " tbody tr").each(function () {
+      let trIsEmpty = true;
+      let tr = $(this);
+      tr.find("td").each(function () {
+        let td = $(this);
+        if (!td.hasClass("column-hidden") && !td.hasClass("sorthandle") && td.text() !== "") {
+          trIsEmpty = false;
+        }
+      });
+      if (trIsEmpty) {
+        tr.addClass("row-empty");
+      } else {
+        tr.removeClass("row-empty");
+      }
+    });
+    // Update counts
+    $(target + "_numrows").text($(target + " tbody tr:visible").length);
+    $(target + "_numcols").text($(target + " thead th:visible").length - 1);
+
+    // Also update the violin plot
+    if (violinAnchor !== undefined) {
+      let plot = mqc_plots[violinAnchor];
+      plot.datasets.map((dataset) => {
+        dataset["metrics"].map((metric) => {
+          dataset["header_by_metric"][metric]["hidden"] = metricsHidden[metric];
+        });
+      });
+      renderPlot(violinAnchor);
+    }
+  }
+
+  // Make rows in MultiQC "Configure Columns" tables sortable
+  $(".mqc_config_modal").on("show.bs.modal", function (e) {
+    $(e.target)
+      .find(".mqc_table.mqc_sortable tbody")
+      .sortable({
+        handle: ".sorthandle",
+        helper: function fixWidthHelper(e, ui) {
+          ui.children().each(function () {
+            $(this).width($(this).width());
+          });
+          return ui;
+        },
+      });
+  });
+
+  // Change order of columns
+  $(".mqc_config_modal_table").on("sortstop", function (e, ui) {
+    change_mqc_table_col_order($(this));
+  });
+  $(".mqc_config_modal_table").bind("sortEnd", function () {
+    change_mqc_table_col_order($(this));
   });
 });
 

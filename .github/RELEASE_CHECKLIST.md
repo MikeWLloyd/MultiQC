@@ -44,7 +44,7 @@ This checklist is for my own reference, as I forget the steps every time.
    - Generate reports in the seqeralabs/web repo.
 
      ```bash
-     cd ../seqeralabs/web/packages/website
+     cd ../seqeralabs/web/packages/website/public/examples
      bash update_examples.sh
      ```
 
@@ -78,9 +78,9 @@ This checklist is for my own reference, as I forget the steps every time.
 
 ## Appendix
 
-### Rebuilding BioConda recipe from scratch
+### Rebuilding Bioconda recipe from scratch
 
-Instructions for complete rebuild of BioConda:
+Instructions for complete rebuild of Bioconda:
 
 <details>
 

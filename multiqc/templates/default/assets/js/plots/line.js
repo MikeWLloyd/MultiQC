@@ -4,22 +4,79 @@ class LinePlot extends Plot {
     return this.datasets[this.activeDatasetIdx].lines.length; // no samples in a dataset
   }
 
-  prepData() {
+  prepData(dataset) {
     // Prepare data to either build Plotly traces or export as a file
-    let dataset = this.datasets[this.activeDatasetIdx];
+    dataset = dataset ?? this.datasets[this.activeDatasetIdx];
 
     let lines = dataset.lines;
 
     let samples = lines.map((line) => line.name);
     let sampleSettings = applyToolboxSettings(samples);
+    this.filtSampleSettings = sampleSettings.filter((s) => !s.hidden);
 
     lines = lines.filter((line, idx) => {
-      line.name = sampleSettings[idx].name ?? line.name;
-      line.highlight = sampleSettings[idx].highlight;
       return !sampleSettings[idx].hidden;
     });
 
+    lines = lines.map((line, idx) => {
+      line.highlight = sampleSettings[idx].highlight;
+      line.pseudonym = sampleSettings[idx].pseudonym;
+      return line;
+    });
+
     return [samples, lines];
+  }
+
+  plotAiHeader() {
+    let result = super.plotAiHeader();
+    if (this.pconfig.xlab) result += `X axis: ${this.pconfig.xlab}\n`;
+    if (this.pconfig.ylab) result += `Y axis: ${this.pconfig.ylab}\n`;
+    return result;
+  }
+
+  formatDatasetForAiPrompt(dataset) {
+    let [samples, lines] = this.prepData(dataset);
+
+    // Check if all samples are hidden
+    if (samples.length === 0) {
+      return "All samples are hidden by user, so no data to analyse. Please inform user to use the toolbox to unhide samples.\n";
+    }
+
+    const xsuffix = this.layout.xaxis.ticksuffix || "";
+    const ysuffix = this.layout.yaxis.ticksuffix || "";
+
+    let result = "Samples: " + samples.join(", ") + "\n\n";
+
+    // If all y-values have the same suffix (like %), mention it in the header
+    if (ysuffix) {
+      result += `Y values are in ${ysuffix}\n\n`;
+    }
+
+    if (xsuffix) {
+      result += `X values are in ${xsuffix}\n\n`;
+    }
+
+    const formattedLines = lines.map((line) => {
+      let name = line.pseudonym ?? line.name;
+      return {
+        name: name,
+        pairs: line.pairs.map((p) =>
+          p.map((x, i) => {
+            return !Number.isFinite(x) ? "" : Number.isInteger(x) ? x : parseFloat(x.toFixed(2));
+          }),
+        ),
+      };
+    });
+
+    return (
+      result +
+      "\n\n" +
+      formattedLines
+        .map((line) => {
+          return line.name + " " + line.pairs.map((p) => p.join(": ")).join(", ");
+        })
+        .join("\n\n")
+    );
   }
 
   buildTraces() {
@@ -65,6 +122,7 @@ class LinePlot extends Plot {
         };
       }
 
+      updateObject(params, line["extra_trace_params"], true);
       updateObject(params, dataset["trace_params"], true);
 
       return {
@@ -79,8 +137,6 @@ class LinePlot extends Plot {
   }
 
   exportData(format) {
-    let dataset = this.datasets[this.activeDatasetIdx];
-
     let [_, lines] = this.prepData();
 
     // check if all lines have the same x values

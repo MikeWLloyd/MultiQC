@@ -1,8 +1,10 @@
 # MultiQC results
 multiqc_config.yaml
-multiqc_report.html
-multiqc_data/
-multiqc_plots/
+*multiqc_report*.html
+multiqc_data*/
+multiqc_plots*/
+*multiqc_report_data/
+*multiqc_report_plots/
 
 # CI tooling
 .ruff_cache
@@ -25,6 +27,7 @@ eggs/
 *.egg
 build/
 dist/
+.mypy_cache
 
 # OS generated files
 .DS_Store
@@ -48,7 +51,13 @@ venv*
 
 # Related repos
 /test-data
+/seqeralabs-docs
 
 node_modules/
 package-lock.json
 package.json
+
+.env
+.claude
+
+Pipfile

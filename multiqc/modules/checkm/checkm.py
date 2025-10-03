@@ -15,7 +15,7 @@ class MultiqcModule(BaseMultiqcModule):
     The output file needs to be in format 1 (`-o 1`).
     All statistics for all samples are saved to `multiqc_data/checkm-table.txt`.
 
-    This has been tested with CheckM v1.2.1 .
+    Tested with CheckM v1.2.1
     """
 
     def __init__(self):
@@ -23,7 +23,7 @@ class MultiqcModule(BaseMultiqcModule):
             name="CheckM",
             anchor="checkm",
             href="https://github.com/Ecogenomics/CheckM",
-            info="CheckM estimates genome completeness and contamination based on the presence or absence of marker genes.",
+            info="Estimates genome completeness and contamination based on the presence or absence of marker genes.",
             doi=["10.1101/gr.186072.114"],
         )
 
@@ -45,6 +45,29 @@ class MultiqcModule(BaseMultiqcModule):
         self.write_data_file(data_by_sample, "multiqc_checkm")
 
         self.mag_quality_table(data_by_sample)
+
+        # Add important columns to general table
+        headers = {
+            "Completeness": {
+                "title": "Completeness",
+                "description": "Estimated completeness of genome as determined from the presence/absence of marker genes and the expected collocalization of these genes",
+                "min": 0,
+                "max": 100,
+                "suffix": "%",
+                "scale": "Purples",
+                "format": "{:,.2f}",
+            },
+            "Contamination": {
+                "title": "Contamination",
+                "description": "Estimated contamination of genome as determined by the presence of multi-copy marker genes and the expected collocalization of these genes",
+                "min": 0,
+                "max": 100,
+                "suffix": "%",
+                "scale": "Reds",
+                "format": "{:,.2f}",
+            },
+        }
+        self.general_stats_addcols(data_by_sample, headers)
 
     def parse_file(self, f, data_by_sample):
         """Parses the file from `checkm qa`.
